@@ -29,11 +29,12 @@ Then:
 
 ### Native OCR note
 
-Text recognition uses `expo-text-extractor` (Apple Vision / Google ML Kit). It works on iOS and Android native builds. On web, use **Try demo lesson** or paste textbook text manually.
+In **Expo Go**, use **Try demo lesson** or paste textbook text (camera/gallery still work for attaching photos).
 
-To create a development build:
+On-device OCR is optional for a custom/development build:
 
 ```bash
+npx expo install expo-text-extractor
 npx expo prebuild
 npx expo run:android
 # or
@@ -42,10 +43,10 @@ npx expo run:ios
 
 ## Stack
 
-- Expo (SDK 57) + Expo Router  
+- Expo (**SDK 54**, Expo Go compatible) + Expo Router  
 - React Native  
 - `expo-image-picker` for camera / gallery  
-- `expo-text-extractor` for on-device OCR  
+- Optional on-device OCR via `expo-text-extractor` in a development build  
 - `expo-print` + `expo-sharing` for printable PDFs  
 
 ## Project layout

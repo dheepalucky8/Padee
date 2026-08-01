@@ -426,9 +426,10 @@ export default function CreateScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Capture textbook pages</Text>
             <Text style={styles.cardBody}>
-              Photograph clear, flat pages. On a phone build, Padee reads the
-              text on-device
-              {ocrReady ? "." : " (OCR needs an iOS/Android build — use demo or paste text here)."}
+              Photograph clear, flat pages.
+              {ocrReady
+                ? " Padee can read the text on-device."
+                : " In Expo Go, use Try demo lesson or paste the lesson text below (OCR needs a development build)."}
             </Text>
 
             <Pressable

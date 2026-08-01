@@ -1,3 +1,4 @@
+import "react-native-gesture-handler";
 import {
   Fraunces_500Medium,
   Fraunces_600SemiBold,

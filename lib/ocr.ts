@@ -12,42 +12,46 @@ export function cleanOcrText(raw: string): string {
     .trim();
 }
 
-export function isOcrSupported(): boolean {
-  if (Platform.OS === "web") return false;
+type TextExtractorModule = {
+  isSupported?: boolean;
+  extractTextFromImage: (uri: string) => Promise<string[]>;
+};
+
+function loadTextExtractor(): TextExtractorModule | null {
   try {
+    // Optional native module — not available in Expo Go; used in custom/dev builds.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require("expo-text-extractor") as {
-      isSupported?: boolean;
-    };
-    return Boolean(mod.isSupported);
+    return require("expo-text-extractor") as TextExtractorModule;
   } catch {
-    return false;
+    return null;
   }
 }
 
+export function isOcrSupported(): boolean {
+  if (Platform.OS === "web") return false;
+  const mod = loadTextExtractor();
+  return Boolean(mod?.isSupported);
+}
+
 /**
- * On-device OCR via Apple Vision / Google ML Kit.
- * Requires a development build or device runtime that includes expo-text-extractor.
- * Not available on web / Expo Go for all setups — callers should fall back to demo text.
+ * On-device OCR when expo-text-extractor is installed in a native build.
+ * In Expo Go, use the demo lesson or paste textbook text manually.
  */
 export async function extractTextFromImageUri(uri: string): Promise<string> {
   if (Platform.OS === "web") {
     throw new Error(
-      "On-device OCR works on iOS/Android builds. Use the demo lesson on web, or type/paste the textbook text.",
+      "On-device OCR works on iOS/Android builds. Use the demo lesson, or type/paste the textbook text.",
     );
   }
 
-  const { extractTextFromImage, isSupported } = await import(
-    "expo-text-extractor"
-  );
-
-  if (!isSupported) {
+  const mod = loadTextExtractor();
+  if (!mod?.isSupported) {
     throw new Error(
-      "Text recognition is not available on this device. Try the demo lesson or paste the text manually.",
+      "Text recognition needs a development build with expo-text-extractor. For now, use Try demo lesson or paste the lesson text.",
     );
   }
 
-  const lines = await extractTextFromImage(uri);
+  const lines = await mod.extractTextFromImage(uri);
   const text = cleanOcrText(lines.join("\n"));
   if (!text) {
     throw new Error(
