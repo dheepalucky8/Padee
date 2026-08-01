@@ -1,41 +1,4 @@
-import type { createWorker } from "tesseract.js";
-
-type Worker = Awaited<ReturnType<typeof createWorker>>;
-
-let workerPromise: Promise<Worker> | null = null;
-
-async function getWorker(): Promise<Worker> {
-  if (!workerPromise) {
-    workerPromise = (async () => {
-      const { createWorker } = await import("tesseract.js");
-      return createWorker("eng", 1, {
-        logger: () => undefined,
-      });
-    })();
-  }
-  return workerPromise;
-}
-
-export async function extractTextFromImage(
-  file: File | Blob,
-  onProgress?: (progress: number) => void,
-): Promise<string> {
-  const worker = await getWorker();
-
-  if (onProgress) {
-    // Tesseract v5+ progress via recognize options is limited; simulate stages
-    onProgress(0.15);
-  }
-
-  const {
-    data: { text },
-  } = await worker.recognize(file, undefined, {
-    text: true,
-  });
-
-  onProgress?.(1);
-  return cleanOcrText(text);
-}
+import { Platform } from "react-native";
 
 export function cleanOcrText(raw: string): string {
   return raw
@@ -49,11 +12,49 @@ export function cleanOcrText(raw: string): string {
     .trim();
 }
 
-export async function terminateOcrWorker(): Promise<void> {
-  if (!workerPromise) return;
-  const worker = await workerPromise;
-  await worker.terminate();
-  workerPromise = null;
+export function isOcrSupported(): boolean {
+  if (Platform.OS === "web") return false;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require("expo-text-extractor") as {
+      isSupported?: boolean;
+    };
+    return Boolean(mod.isSupported);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * On-device OCR via Apple Vision / Google ML Kit.
+ * Requires a development build or device runtime that includes expo-text-extractor.
+ * Not available on web / Expo Go for all setups — callers should fall back to demo text.
+ */
+export async function extractTextFromImageUri(uri: string): Promise<string> {
+  if (Platform.OS === "web") {
+    throw new Error(
+      "On-device OCR works on iOS/Android builds. Use the demo lesson on web, or type/paste the textbook text.",
+    );
+  }
+
+  const { extractTextFromImage, isSupported } = await import(
+    "expo-text-extractor"
+  );
+
+  if (!isSupported) {
+    throw new Error(
+      "Text recognition is not available on this device. Try the demo lesson or paste the text manually.",
+    );
+  }
+
+  const lines = await extractTextFromImage(uri);
+  const text = cleanOcrText(lines.join("\n"));
+  if (!text) {
+    throw new Error(
+      "No readable text found. Try a clearer photo of the textbook page.",
+    );
+  }
+  return text;
 }
 
 /** Sample textbook excerpt for demo without a camera. */

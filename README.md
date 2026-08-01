@@ -1,46 +1,58 @@
-# Padee
+# Padee (Mobile)
 
-**Padee** helps school children turn textbook pages into printable practice worksheets and question papers.
+**Padee** is a mobile study app that turns textbook photos into printable practice worksheets and question papers.
 
-Supports **CBSE**, **ICSE**, and **Matriculation** boards for **Grades 1–8**, with three levels: **Easy**, **Medium**, and **Difficult**.
+Supports **CBSE**, **ICSE**, and **Matriculation** for **Grades 1–8**, with **Easy / Medium / Difficult** levels.
 
-## What it does
+## Features
 
 1. Choose board, grade, subject, difficulty, and worksheet vs question-paper format  
-2. Capture or upload textbook page photos (OCR extracts the lesson text)  
-3. Generate framed questions from that content  
-4. Preview, show an answer key, and **print / save as PDF** (A4)
+2. Capture textbook pages with the camera (or pick from gallery)  
+3. On-device OCR reads the lesson text (iOS / Android development build)  
+4. Generate framed questions and **share / print an A4 PDF**
 
-## Quick start
+A **Try demo lesson** path is included for quick testing without photos.
+
+## Run the app
 
 ```bash
 npm install
-npm run dev
+npx expo start
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Then:
 
-On the create flow you can use **Try demo lesson** if you do not have textbook photos handy.
+- press `a` for Android emulator / device  
+- press `i` for iOS simulator (macOS)  
+- scan the QR code with Expo Go (camera + gallery work; on-device OCR needs a [development build](https://docs.expo.dev/develop/development-builds/introduction/))  
+- press `w` for web preview of the UI flow
+
+### Native OCR note
+
+Text recognition uses `expo-text-extractor` (Apple Vision / Google ML Kit). It works on iOS and Android native builds. On web, use **Try demo lesson** or paste textbook text manually.
+
+To create a development build:
+
+```bash
+npx expo prebuild
+npx expo run:android
+# or
+npx expo run:ios
+```
 
 ## Stack
 
-- Next.js (App Router) + TypeScript + Tailwind CSS  
-- [Tesseract.js](https://tesseract.projectnaptha.com/) for in-browser OCR  
-- Client-side question framing (fill-ups, MCQ, true/false, short & long answers, match)
+- Expo (SDK 57) + Expo Router  
+- React Native  
+- `expo-image-picker` for camera / gallery  
+- `expo-text-extractor` for on-device OCR  
+- `expo-print` + `expo-sharing` for printable PDFs  
 
-## Scripts
+## Project layout
 
-| Command        | Description              |
-|----------------|--------------------------|
-| `npm run dev`  | Start development server |
-| `npm run build`| Production build         |
-| `npm run start`| Run production server    |
-| `npm run lint` | Lint the project         |
-
-## Tips for best results
-
-- Photograph pages in good light, flat and in focus  
-- One lesson section at a time works better than many cluttered pages  
-- Edit the extracted text before generating if OCR misreads a word  
-
-Built for parents and teachers who want quick, printable practice from the books children already use.
+```
+app/           Screens (home, create wizard)
+lib/           Boards, OCR helpers, question generator, print HTML
+constants/     Brand colors
+assets/        Icons & splash
+```

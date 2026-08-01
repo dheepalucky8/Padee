@@ -25,10 +25,8 @@ export interface WorksheetConfig {
 
 export interface CapturedPage {
   id: string;
-  file: File;
-  previewUrl: string;
+  uri: string;
   extractedText: string;
-  ocrProgress: number;
   status: "pending" | "processing" | "done" | "error";
   error?: string;
 }
