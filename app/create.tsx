@@ -22,10 +22,7 @@ import {
   MARKS_TOTALS,
   SUBJECTS,
 } from "@/lib/boards";
-import {
-  extractTextFromImageUri,
-  SAMPLE_TEXTBOOK_TEXT,
-} from "@/lib/ocr";
+import { extractTextFromImageUri } from "@/lib/ocr";
 import { generatePaper } from "@/lib/questionGenerator";
 import { buildPrintableHtml } from "@/lib/print";
 import { loadProfile } from "@/lib/profile";
@@ -125,32 +122,22 @@ export default function CreateScreen() {
     setCombinedText(doneText);
   }
 
-  async function pickImages(fromCamera: boolean) {
+  async function captureWithCamera() {
     setError(null);
-    const permission = fromCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
 
     if (!permission.granted) {
       setError(
-        fromCamera
-          ? "Camera permission is needed to photograph textbook pages."
-          : "Photo library permission is needed to upload textbook pages.",
+        "Camera permission is needed to photograph textbook pages. Enable it in your phone settings.",
       );
       return;
     }
 
-    const result = fromCamera
-      ? await ImagePicker.launchCameraAsync({
-          quality: 0.85,
-          allowsEditing: false,
-        })
-      : await ImagePicker.launchImageLibraryAsync({
-          quality: 0.85,
-          allowsMultipleSelection: true,
-          selectionLimit: 6,
-          mediaTypes: ["images"],
-        });
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.9,
+      allowsEditing: false,
+      exif: false,
+    });
 
     if (result.canceled || !result.assets?.length) return;
 
@@ -169,24 +156,31 @@ export default function CreateScreen() {
           p.id === page.id ? { ...p, status: "processing" } : p,
         ),
       );
-      const text = await extractTextFromImageUri(page.uri);
-      setPages((prev) => {
-        const next = prev.map((p) =>
-          p.id === page.id
-            ? { ...p, status: "done" as const, extractedText: text }
-            : p,
-        );
-        if (text.trim()) {
+      try {
+        const text = await extractTextFromImageUri(page.uri);
+        setPages((prev) => {
+          const next = prev.map((p) =>
+            p.id === page.id
+              ? { ...p, status: "done" as const, extractedText: text }
+              : p,
+          );
           queueMicrotask(() => syncTextFromPages(next));
-        }
-        return next;
-      });
-      if (!text.trim()) {
-        setError(
-          "Photo saved. If text wasn’t read automatically, paste the lesson text below or tap Try demo lesson.",
-        );
-      } else {
+          return next;
+        });
         setError(null);
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Could not read text from this photo.";
+        setPages((prev) =>
+          prev.map((p) =>
+            p.id === page.id
+              ? { ...p, status: "error", error: message }
+              : p,
+          ),
+        );
+        setError(`${message} Retake the photo and try again.`);
       }
     }
   }
@@ -195,12 +189,9 @@ export default function CreateScreen() {
     const next = pages.filter((p) => p.id !== id);
     setPages(next);
     syncTextFromPages(next);
-  }
-
-  function useDemoText() {
-    setCombinedText(SAMPLE_TEXTBOOK_TEXT);
-    setError(null);
-    setStep(2);
+    if (!next.some((p) => p.status === "done" && p.extractedText)) {
+      setCombinedText("");
+    }
   }
 
   function handleGenerate() {
@@ -231,7 +222,7 @@ export default function CreateScreen() {
     if (step === 1) {
       if (!hasText) {
         setError(
-          "Add textbook photos (or use the demo lesson) so Padee can read the content.",
+          "Take a clear camera photo of the textbook page so Padee can read the lesson.",
         );
         return;
       }
@@ -458,27 +449,20 @@ export default function CreateScreen() {
 
         {step === 1 && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Capture textbook pages</Text>
+            <Text style={styles.cardTitle}>Photograph the textbook</Text>
             <Text style={styles.cardBody}>
-              Photograph a clear textbook page. Padee will try to read the text
-              (may take a few seconds). You can always paste or edit the lesson
-              text below, or use Try demo lesson.
+              Point the camera at a clear page in good light. Padee reads the
+              text from the photo — no typing needed.
             </Text>
 
             <Pressable
               style={styles.primaryBtn}
-              onPress={() => void pickImages(true)}
+              onPress={() => void captureWithCamera()}
+              disabled={ocrBusy}
             >
-              <Text style={styles.primaryBtnText}>Use camera</Text>
-            </Pressable>
-            <Pressable
-              style={styles.secondaryBtn}
-              onPress={() => void pickImages(false)}
-            >
-              <Text style={styles.secondaryBtnText}>Upload from gallery</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryBtn} onPress={useDemoText}>
-              <Text style={styles.secondaryBtnText}>Try demo lesson</Text>
+              <Text style={styles.primaryBtnText}>
+                {ocrBusy ? "Reading page…" : pages.length ? "Take another photo" : "Open camera"}
+              </Text>
             </Pressable>
 
             {pages.length > 0 && (
@@ -488,10 +472,11 @@ export default function CreateScreen() {
                     <Image source={{ uri: page.uri }} style={styles.thumb} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.pageStatus}>
-                        {page.status === "processing" && "Reading page…"}
-                        {page.status === "done" && "Text ready"}
+                        {page.status === "processing" && "Reading text from photo…"}
+                        {page.status === "done" && "Text ready from camera"}
                         {page.status === "pending" && "Waiting…"}
-                        {page.status === "error" && (page.error || "Failed")}
+                        {page.status === "error" &&
+                          (page.error || "Could not read — retake photo")}
                       </Text>
                       <Pressable onPress={() => removePage(page.id)}>
                         <Text style={styles.removeLink}>Remove</Text>
@@ -502,16 +487,14 @@ export default function CreateScreen() {
               </View>
             )}
 
-            <Text style={styles.label}>Extracted lesson text</Text>
-            <TextInput
-              value={combinedText}
-              onChangeText={setCombinedText}
-              multiline
-              textAlignVertical="top"
-              placeholder="Text from textbook photos appears here. You can edit or paste lesson text."
-              placeholderTextColor={Colors.inkSoft}
-              style={[styles.input, styles.textArea]}
-            />
+            {combinedText.trim().length > 0 && (
+              <>
+                <Text style={styles.label}>Text read from camera</Text>
+                <Text style={styles.previewText} numberOfLines={12}>
+                  {combinedText}
+                </Text>
+              </>
+            )}
           </View>
         )}
 
