@@ -13,12 +13,13 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+import { useLocalSearchParams } from "expo-router";
 import {
   BOARDS,
   DIFFICULTIES,
   DOCUMENT_TYPES,
   GRADES,
-  QUESTION_COUNTS,
+  MARKS_TOTALS,
   SUBJECTS,
 } from "@/lib/boards";
 import {
@@ -35,6 +36,7 @@ import type {
   Difficulty,
   DocumentType,
   GeneratedPaper,
+  MarksTotal,
   WorksheetConfig,
 } from "@/lib/types";
 import { Colors } from "@/constants/Colors";
@@ -51,6 +53,11 @@ function difficultyLabel(value: Difficulty): string {
 }
 
 export default function CreateScreen() {
+  const params = useLocalSearchParams<{
+    type?: string;
+    difficulty?: string;
+    marks?: string;
+  }>();
   const [step, setStep] = useState(0);
   const [studentName, setStudentName] = useState("");
   const [board, setBoard] = useState<Board>("CBSE");
@@ -59,7 +66,7 @@ export default function CreateScreen() {
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [documentType, setDocumentType] =
     useState<DocumentType>("worksheet");
-  const [questionCount, setQuestionCount] = useState(10);
+  const [targetMarks, setTargetMarks] = useState<MarksTotal>(25);
   const [title, setTitle] = useState("");
   const [pages, setPages] = useState<CapturedPage[]>([]);
   const [combinedText, setCombinedText] = useState("");
@@ -67,6 +74,23 @@ export default function CreateScreen() {
   const [showAnswers, setShowAnswers] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (params.type === "question-paper" || params.type === "worksheet") {
+      setDocumentType(params.type);
+    }
+    if (
+      params.difficulty === "easy" ||
+      params.difficulty === "medium" ||
+      params.difficulty === "hard"
+    ) {
+      setDifficulty(params.difficulty);
+    }
+    const marksNum = Number(params.marks);
+    if (MARKS_TOTALS.includes(marksNum as MarksTotal)) {
+      setTargetMarks(marksNum as MarksTotal);
+    }
+  }, [params.type, params.difficulty, params.marks]);
 
   useEffect(() => {
     (async () => {
@@ -86,9 +110,9 @@ export default function CreateScreen() {
       difficulty,
       documentType,
       title: title || undefined,
-      questionCount,
+      targetMarks,
     }),
-    [board, grade, subject, difficulty, documentType, title, questionCount],
+    [board, grade, subject, difficulty, documentType, title, targetMarks],
   );
 
   const ocrBusy = pages.some((p) => p.status === "processing");
@@ -401,21 +425,25 @@ export default function CreateScreen() {
               </Pressable>
             ))}
 
-            <Text style={styles.label}>Number of questions</Text>
+            <Text style={styles.label}>Out of marks</Text>
+            <Text style={styles.hint}>
+              Paper total — 10, 15, 25, 35, 50, 75 or 100. Includes fill-ups,
+              choose, match, one-word, 2-mark and give-reason formats.
+            </Text>
             <View style={styles.rowWrap}>
-              {QUESTION_COUNTS.map((n) => (
+              {MARKS_TOTALS.map((n) => (
                 <Pressable
                   key={n}
-                  onPress={() => setQuestionCount(n)}
+                  onPress={() => setTargetMarks(n)}
                   style={[
                     styles.pill,
-                    questionCount === n && styles.pillSelected,
+                    targetMarks === n && styles.pillSelected,
                   ]}
                 >
                   <Text
                     style={[
                       styles.pillText,
-                      questionCount === n && styles.pillTextSelected,
+                      targetMarks === n && styles.pillTextSelected,
                     ]}
                   >
                     {n}
@@ -517,7 +545,7 @@ export default function CreateScreen() {
                   ? "Question Paper"
                   : "Worksheet",
               ],
-              ["Questions", String(questionCount)],
+              ["Out of", `${targetMarks} marks`],
             ].map(([label, value]) => (
               <View key={label} style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>{label}</Text>
@@ -553,10 +581,8 @@ export default function CreateScreen() {
                   }`}
               </Text>
               <Text style={styles.paperSub}>
-                Level: {difficultyLabel(paper.config.difficulty)}
-                {paper.config.documentType === "question-paper"
-                  ? ` · Max marks ${paper.totalMarks}`
-                  : ""}
+                Level: {difficultyLabel(paper.config.difficulty)} · Out of{" "}
+                {paper.config.targetMarks} · {paper.totalMarks} marks set
               </Text>
               <Text style={styles.paperSource}>{paper.sourceSummary}</Text>
 
@@ -691,6 +717,14 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_400Regular",
     fontSize: 15,
     lineHeight: 22,
+    color: Colors.inkSoft,
+  },
+  hint: {
+    marginTop: -4,
+    marginBottom: 10,
+    fontFamily: "Nunito_400Regular",
+    fontSize: 13,
+    lineHeight: 19,
     color: Colors.inkSoft,
   },
   label: {

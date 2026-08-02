@@ -67,7 +67,7 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="home"
-          options={{ title: "Home", headerBackTitle: "Welcome" }}
+          options={{ title: "Dashboard", headerBackTitle: "Welcome" }}
         />
         <Stack.Screen
           name="create"

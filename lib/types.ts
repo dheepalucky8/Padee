@@ -8,10 +8,13 @@ export type QuestionType =
   | "fill-blank"
   | "true-false"
   | "mcq"
-  | "short-answer"
-  | "long-answer"
+  | "one-word"
   | "match"
-  | "one-word";
+  | "two-mark"
+  | "give-reason"
+  | "long-answer";
+
+export type MarksTotal = 10 | 15 | 25 | 35 | 50 | 75 | 100;
 
 export interface WorksheetConfig {
   board: Board;
@@ -20,7 +23,8 @@ export interface WorksheetConfig {
   difficulty: Difficulty;
   documentType: DocumentType;
   title?: string;
-  questionCount: number;
+  /** Target total marks for the paper / worksheet */
+  targetMarks: MarksTotal;
 }
 
 export interface CapturedPage {

@@ -1,4 +1,4 @@
-import type { Board, Difficulty, DocumentType } from "./types";
+import type { Board, Difficulty, DocumentType, MarksTotal } from "./types";
 
 export const BOARDS: { id: Board; label: string; blurb: string }[] = [
   {
@@ -39,17 +39,20 @@ export const DIFFICULTIES: {
   {
     id: "easy",
     label: "Easy",
-    description: "Fill-ups, true/false, and simple recall",
+    description:
+      "Fill-ups, choose, match, one-word, 2-mark & give-reason — gentler wording",
   },
   {
     id: "medium",
     label: "Medium",
-    description: "MCQs, short answers, and one-word questions",
+    description:
+      "All formats with clearer application and short explanations",
   },
   {
     id: "hard",
     label: "Difficult",
-    description: "Explain, apply, and higher-order thinking",
+    description:
+      "All formats with tougher prompts and deeper give-reason / long answers",
   },
 ];
 
@@ -70,4 +73,14 @@ export const DOCUMENT_TYPES: {
   },
 ];
 
-export const QUESTION_COUNTS = [8, 10, 12, 15, 20] as const;
+/** Out-of marks options for papers and worksheets */
+export const MARKS_TOTALS: MarksTotal[] = [10, 15, 25, 35, 50, 75, 100];
+
+export const QUESTION_FORMATS = [
+  { id: "fill-blank", label: "Fill-ups", marks: 1 },
+  { id: "mcq", label: "Choose", marks: 1 },
+  { id: "match", label: "Match", marks: 2 },
+  { id: "one-word", label: "One word", marks: 1 },
+  { id: "two-mark", label: "2-mark", marks: 2 },
+  { id: "give-reason", label: "Give reason", marks: 2 },
+] as const;

@@ -34,16 +34,13 @@ export function buildPrintableHtml(
       const answerSpace =
         question.type === "long-answer"
           ? '<div style="height:90px;border:1px dashed #bbb;margin-top:10px;"></div>'
-          : question.type === "short-answer"
+          : question.type === "two-mark" || question.type === "give-reason"
             ? '<div style="height:54px;border:1px dashed #bbb;margin-top:10px;"></div>'
             : question.type === "match"
               ? '<div style="height:36px;border:1px dashed #bbb;margin-top:10px;"></div>'
               : '<div style="height:28px;border:1px dashed #bbb;margin-top:10px;"></div>';
 
-      const marks =
-        config.documentType === "question-paper"
-          ? `<span style="float:right;font-weight:700;">[${question.marks}]</span>`
-          : "";
+      const marks = `<span style="float:right;font-weight:700;">[${question.marks}]</span>`;
 
       return `
         <div style="margin:0 0 22px;page-break-inside:avoid;">
@@ -75,10 +72,7 @@ export function buildPrintableHtml(
     `
     : "";
 
-  const meta =
-    config.documentType === "question-paper"
-      ? `Level: <strong>${difficultyLabel(config.difficulty)}</strong> · Maximum Marks: <strong>${totalMarks}</strong> · Time: <strong>${Math.max(30, totalMarks * 3)} minutes</strong>`
-      : `Level: <strong>${difficultyLabel(config.difficulty)}</strong>`;
+  const meta = `Level: <strong>${difficultyLabel(config.difficulty)}</strong> · Maximum Marks: <strong>${totalMarks}</strong> / ${config.targetMarks} · Time: <strong>${Math.max(30, totalMarks * 2)} minutes</strong>`;
 
   return `
 <!DOCTYPE html>

@@ -1,6 +1,5 @@
 import type {
   Difficulty,
-  DocumentType,
   GeneratedPaper,
   Question,
   QuestionType,
@@ -100,13 +99,47 @@ const STOP_WORDS = new Set([
   "examples",
 ]);
 
+/** Every paper includes all of these formats when the marks total allows. */
+const ALL_FORMATS: QuestionType[] = [
+  "fill-blank",
+  "mcq",
+  "match",
+  "one-word",
+  "two-mark",
+  "give-reason",
+  "true-false",
+  "long-answer",
+];
+
+const TYPE_MARKS: Record<QuestionType, number> = {
+  "fill-blank": 1,
+  "true-false": 1,
+  mcq: 1,
+  "one-word": 1,
+  match: 2,
+  "two-mark": 2,
+  "give-reason": 2,
+  "long-answer": 5,
+};
+
+const SECTION_FOR: Record<QuestionType, string> = {
+  "fill-blank": "A",
+  "true-false": "A",
+  mcq: "B",
+  "one-word": "B",
+  match: "A",
+  "two-mark": "C",
+  "give-reason": "C",
+  "long-answer": "D",
+};
+
 function splitSentences(text: string): string[] {
   return text
     .replace(/\n+/g, " ")
     .split(/(?<=[.!?])\s+/)
     .map((s) => s.trim())
     .filter((s) => s.length > 25 && s.split(/\s+/).length >= 5)
-    .slice(0, 40);
+    .slice(0, 48);
 }
 
 function extractKeyTerms(text: string): string[] {
@@ -124,11 +157,10 @@ function extractKeyTerms(text: string): string[] {
     freq.set(lower, (freq.get(lower) || 0) + 1);
   }
 
-  // Prefer words that appear more than once, then longer words
   return [...freq.entries()]
     .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
     .map(([word]) => word)
-    .slice(0, 24);
+    .slice(0, 28);
 }
 
 function capitalize(word: string): string {
@@ -161,34 +193,15 @@ function shuffle<T>(arr: T[]): T[] {
   return copy;
 }
 
-function marksFor(type: QuestionType, difficulty: Difficulty, documentType: DocumentType): number {
-  if (documentType === "worksheet") return 1;
-  const base: Record<QuestionType, number> = {
-    "fill-blank": 1,
-    "true-false": 1,
-    mcq: 1,
-    "one-word": 1,
-    match: 2,
-    "short-answer": 2,
-    "long-answer": 4,
-  };
-  const bump = difficulty === "hard" ? 1 : 0;
-  return base[type] + (type === "long-answer" || type === "short-answer" ? bump : 0);
+function marksFor(type: QuestionType, difficulty: Difficulty): number {
+  const base = TYPE_MARKS[type];
+  if (type === "long-answer" && difficulty === "hard") return base + 1;
+  if (type === "give-reason" && difficulty === "hard") return base + 1;
+  return base;
 }
 
 function makeId(prefix: string, index: number): string {
   return `${prefix}-${index + 1}`;
-}
-
-function typesForDifficulty(difficulty: Difficulty): QuestionType[] {
-  switch (difficulty) {
-    case "easy":
-      return ["fill-blank", "true-false", "one-word", "mcq", "match"];
-    case "medium":
-      return ["mcq", "fill-blank", "short-answer", "one-word", "true-false"];
-    case "hard":
-      return ["short-answer", "long-answer", "mcq", "fill-blank", "one-word"];
-  }
 }
 
 function buildFillBlank(
@@ -196,7 +209,6 @@ function buildFillBlank(
   terms: string[],
   id: string,
   difficulty: Difficulty,
-  documentType: DocumentType,
 ): Question | null {
   const term =
     terms.find((t) => findWordInSentence(sentence, t)) ||
@@ -213,8 +225,8 @@ function buildFillBlank(
     type: "fill-blank",
     prompt: `Fill in the blank:\n${prompt}`,
     answer: actual,
-    marks: marksFor("fill-blank", difficulty, documentType),
-    section: "A",
+    marks: marksFor("fill-blank", difficulty),
+    section: SECTION_FOR["fill-blank"],
   };
 }
 
@@ -222,7 +234,6 @@ function buildTrueFalse(
   sentence: string,
   id: string,
   difficulty: Difficulty,
-  documentType: DocumentType,
   makeFalse: boolean,
   terms: string[],
 ): Question {
@@ -249,8 +260,8 @@ function buildTrueFalse(
     type: "true-false",
     prompt: `State whether True or False:\n${prompt}`,
     answer,
-    marks: marksFor("true-false", difficulty, documentType),
-    section: "A",
+    marks: marksFor("true-false", difficulty),
+    section: SECTION_FOR["true-false"],
   };
 }
 
@@ -259,7 +270,6 @@ function buildMcq(
   terms: string[],
   id: string,
   difficulty: Difficulty,
-  documentType: DocumentType,
 ): Question | null {
   const term = terms.find((t) => findWordInSentence(sentence, t));
   if (!term) return null;
@@ -275,12 +285,12 @@ function buildMcq(
     type: "mcq",
     prompt:
       difficulty === "hard"
-        ? `Choose the most suitable word to complete the idea:\n${blanked}`
+        ? `Choose the most suitable answer:\n${blanked}`
         : `Choose the correct answer:\n${blanked}`,
     options,
     answer: capitalize(actual),
-    marks: marksFor("mcq", difficulty, documentType),
-    section: "B",
+    marks: marksFor("mcq", difficulty),
+    section: SECTION_FOR.mcq,
   };
 }
 
@@ -289,7 +299,6 @@ function buildOneWord(
   terms: string[],
   id: string,
   difficulty: Difficulty,
-  documentType: DocumentType,
 ): Question | null {
   const term = terms.find((t) => findWordInSentence(sentence, t));
   if (!term) return null;
@@ -297,30 +306,48 @@ function buildOneWord(
   return {
     id,
     type: "one-word",
-    prompt: `Answer in one word:\nWhich word from the lesson completes this idea — "${sentence.replace(new RegExp(`\\b${actual}\\b`), "________")}"?`,
+    prompt: `Answer in one word:\n${sentence.replace(new RegExp(`\\b${actual}\\b`), "________")}`,
     answer: actual,
-    marks: marksFor("one-word", difficulty, documentType),
-    section: "B",
+    marks: marksFor("one-word", difficulty),
+    section: SECTION_FOR["one-word"],
   };
 }
 
-function buildShortAnswer(
+function buildTwoMark(
   sentence: string,
   id: string,
   difficulty: Difficulty,
-  documentType: DocumentType,
 ): Question {
   const cleaned = sentence.replace(/[.!?]+$/, "");
   return {
     id,
-    type: "short-answer",
+    type: "two-mark",
+    prompt:
+      difficulty === "easy"
+        ? `Answer in about 2–3 lines (2 marks):\nWhat do you understand from this — "${cleaned}."?`
+        : `Answer briefly (2 marks):\n${cleaned}?`,
+    answer: sentence,
+    marks: marksFor("two-mark", difficulty),
+    section: SECTION_FOR["two-mark"],
+  };
+}
+
+function buildGiveReason(
+  sentence: string,
+  id: string,
+  difficulty: Difficulty,
+): Question {
+  const cleaned = sentence.replace(/[.!?]+$/, "");
+  return {
+    id,
+    type: "give-reason",
     prompt:
       difficulty === "hard"
-        ? `In 2–3 sentences, explain why this is important:\n"${cleaned}."`
-        : `Answer briefly:\n${cleaned}? Write your answer in 1–2 sentences.`,
+        ? `Give reason (with an example):\nWhy is this true — "${cleaned}."?`
+        : `Give reason:\nWhy — "${cleaned}."?`,
     answer: sentence,
-    marks: marksFor("short-answer", difficulty, documentType),
-    section: "C",
+    marks: marksFor("give-reason", difficulty),
+    section: SECTION_FOR["give-reason"],
   };
 }
 
@@ -329,17 +356,19 @@ function buildLongAnswer(
   terms: string[],
   id: string,
   difficulty: Difficulty,
-  documentType: DocumentType,
 ): Question {
   const topic = terms[0] ? capitalize(terms[0]) : "the topic";
   const support = sentences.slice(0, 2).join(" ");
   return {
     id,
     type: "long-answer",
-    prompt: `Write a detailed answer (5–8 lines):\nDescribe ${topic} based on your textbook lesson. Include key points and examples.`,
+    prompt:
+      difficulty === "easy"
+        ? `Write 4–5 lines about ${topic} from your lesson.`
+        : `Write a detailed answer:\nDescribe ${topic} with key points and examples from the textbook.`,
     answer: support || `Key points about ${topic} from the lesson.`,
-    marks: marksFor("long-answer", difficulty, documentType),
-    section: "D",
+    marks: marksFor("long-answer", difficulty),
+    section: SECTION_FOR["long-answer"],
   };
 }
 
@@ -348,14 +377,14 @@ function buildMatch(
   sentences: string[],
   id: string,
   difficulty: Difficulty,
-  documentType: DocumentType,
 ): Question | null {
   const pairs: { left: string; right: string }[] = [];
   for (const term of terms) {
     const sentence = sentences.find((s) => findWordInSentence(s, term));
     if (!sentence) continue;
+    const actual = findWordInSentence(sentence, term)!;
     const snippet = sentence
-      .replace(new RegExp(`\\b${findWordInSentence(sentence, term)}\\b`, "i"), "…")
+      .replace(new RegExp(`\\b${actual}\\b`, "i"), "…")
       .slice(0, 90);
     pairs.push({ left: capitalize(term), right: snippet });
     if (pairs.length >= 4) break;
@@ -379,37 +408,68 @@ function buildMatch(
     type: "match",
     prompt: `Match the following:\n\nColumn A\n${left}\n\nColumn B\n${right}`,
     answer,
-    marks: marksFor("match", difficulty, documentType),
-    section: "A",
+    marks: marksFor("match", difficulty),
+    section: SECTION_FOR.match,
   };
 }
 
-function instructionsFor(
-  config: WorksheetConfig,
-): string[] {
-  const common = [
+function buildQuestion(
+  type: QuestionType,
+  ctx: {
+    sentence: string;
+    sentences: string[];
+    terms: string[];
+    id: string;
+    difficulty: Difficulty;
+    trueFalseToggle: boolean;
+  },
+): Question | null {
+  switch (type) {
+    case "fill-blank":
+      return buildFillBlank(ctx.sentence, ctx.terms, ctx.id, ctx.difficulty);
+    case "true-false":
+      return buildTrueFalse(
+        ctx.sentence,
+        ctx.id,
+        ctx.difficulty,
+        ctx.trueFalseToggle,
+        ctx.terms,
+      );
+    case "mcq":
+      return buildMcq(ctx.sentence, ctx.terms, ctx.id, ctx.difficulty);
+    case "one-word":
+      return buildOneWord(ctx.sentence, ctx.terms, ctx.id, ctx.difficulty);
+    case "two-mark":
+      return buildTwoMark(ctx.sentence, ctx.id, ctx.difficulty);
+    case "give-reason":
+      return buildGiveReason(ctx.sentence, ctx.id, ctx.difficulty);
+    case "long-answer":
+      return buildLongAnswer(
+        ctx.sentences,
+        ctx.terms,
+        ctx.id,
+        ctx.difficulty,
+      );
+    case "match":
+      return buildMatch(ctx.terms, ctx.sentences, ctx.id, ctx.difficulty);
+  }
+}
+
+function instructionsFor(config: WorksheetConfig): string[] {
+  return [
     "Read the questions carefully before answering.",
     "Write neatly in the spaces provided.",
-  ];
-
-  if (config.documentType === "question-paper") {
-    return [
-      ...common,
-      "All questions are compulsory unless stated otherwise.",
-      "Marks for each question are indicated against it.",
-      config.difficulty === "hard"
-        ? "Support your answers with examples from the lesson."
-        : "Keep answers clear and to the point.",
-    ];
-  }
-
-  return [
-    ...common,
-    "This worksheet is for practice — take your time.",
+    `This paper is for a total of ${config.targetMarks} marks.`,
+    "Marks for each question are shown in brackets.",
+    "Formats include fill-ups, choose, match, one-word, 2-mark, and give-reason questions.",
     config.difficulty === "easy"
-      ? "Use the textbook page if you need a hint."
+      ? "Take your time — use the textbook if you need a hint."
       : "Try answering without looking at the book first.",
   ];
+}
+
+function currentMarks(questions: Question[]): number {
+  return questions.reduce((sum, q) => sum + q.marks, 0);
 }
 
 export function generatePaper(
@@ -425,7 +485,7 @@ export function generatePaper(
     );
   }
 
-  const desiredTypes = typesForDifficulty(config.difficulty);
+  const target = config.targetMarks;
   const questions: Question[] = [];
   let sentenceIndex = 0;
   let trueFalseToggle = false;
@@ -436,170 +496,99 @@ export function generatePaper(
     return s;
   };
 
-  // Always try one match set for easy/medium worksheets
-  if (config.difficulty !== "hard" && questions.length < config.questionCount) {
-    const matchQ = buildMatch(
-      terms,
+  const tryAdd = (type: QuestionType): boolean => {
+    const marks = marksFor(type, config.difficulty);
+    if (currentMarks(questions) + marks > target) return false;
+    if (type === "match" && questions.some((q) => q.type === "match")) {
+      return false;
+    }
+    // Cap long answers so small papers stay balanced
+    if (
+      type === "long-answer" &&
+      (target < 25 ||
+        questions.filter((q) => q.type === "long-answer").length >=
+          (target >= 75 ? 2 : 1))
+    ) {
+      return false;
+    }
+
+    const id = makeId("q", questions.length);
+    const question = buildQuestion(type, {
+      sentence: nextSentence(),
       sentences,
-      makeId("q", questions.length),
-      config.difficulty,
-      config.documentType,
-    );
-    if (matchQ) questions.push(matchQ);
-  }
+      terms,
+      id,
+      difficulty: config.difficulty,
+      trueFalseToggle,
+    });
+    if (type === "true-false") trueFalseToggle = !trueFalseToggle;
+    if (!question) return false;
 
-  let guard = 0;
-  let typeCursor = questions.length;
-  while (questions.length < config.questionCount && guard < config.questionCount * 8) {
-    guard += 1;
-    const type = desiredTypes[typeCursor % desiredTypes.length];
-    typeCursor += 1;
-    const sentence = nextSentence();
-    const id = makeId("q", questions.length);
-    let question: Question | null = null;
-
-    switch (type) {
-      case "fill-blank":
-        question = buildFillBlank(
-          sentence,
-          terms,
-          id,
-          config.difficulty,
-          config.documentType,
-        );
-        break;
-      case "true-false":
-        question = buildTrueFalse(
-          sentence,
-          id,
-          config.difficulty,
-          config.documentType,
-          trueFalseToggle,
-          terms,
-        );
-        trueFalseToggle = !trueFalseToggle;
-        break;
-      case "mcq":
-        question = buildMcq(
-          sentence,
-          terms,
-          id,
-          config.difficulty,
-          config.documentType,
-        );
-        break;
-      case "one-word":
-        question = buildOneWord(
-          sentence,
-          terms,
-          id,
-          config.difficulty,
-          config.documentType,
-        );
-        break;
-      case "short-answer":
-        question = buildShortAnswer(
-          sentence,
-          id,
-          config.difficulty,
-          config.documentType,
-        );
-        break;
-      case "long-answer":
-        question = buildLongAnswer(
-          sentences,
-          terms,
-          id,
-          config.difficulty,
-          config.documentType,
-        );
-        break;
-      case "match":
-        // Only one match block per paper
-        if (!questions.some((q) => q.type === "match")) {
-          question = buildMatch(
-            terms,
-            sentences,
-            id,
-            config.difficulty,
-            config.documentType,
-          );
-        }
-        break;
-    }
-
-    if (question) {
-      const duplicate = questions.some(
-        (q) =>
-          q.type === question!.type &&
-          q.answer.toLowerCase() === question!.answer.toLowerCase() &&
-          q.prompt.slice(0, 40) === question!.prompt.slice(0, 40),
-      );
-      if (!duplicate) questions.push(question);
-    }
-  }
-
-  // Fallback with rotating simpler types if still short
-  const fallbackTypes: QuestionType[] =
-    config.difficulty === "hard"
-      ? ["short-answer", "mcq", "fill-blank", "one-word"]
-      : ["true-false", "mcq", "fill-blank", "one-word", "short-answer"];
-  let fallbackCursor = 0;
-  while (questions.length < config.questionCount && fallbackCursor < sentences.length * 3) {
-    const sentence = nextSentence();
-    const id = makeId("q", questions.length);
-    const type = fallbackTypes[fallbackCursor % fallbackTypes.length];
-    fallbackCursor += 1;
-    let fallback: Question | null = null;
-    if (type === "true-false") {
-      fallback = buildTrueFalse(
-        sentence,
-        id,
-        config.difficulty,
-        config.documentType,
-        fallbackCursor % 2 === 0,
-        terms,
-      );
-    } else if (type === "mcq") {
-      fallback = buildMcq(
-        sentence,
-        terms,
-        id,
-        config.difficulty,
-        config.documentType,
-      );
-    } else if (type === "one-word") {
-      fallback = buildOneWord(
-        sentence,
-        terms,
-        id,
-        config.difficulty,
-        config.documentType,
-      );
-    } else if (type === "short-answer") {
-      fallback = buildShortAnswer(
-        sentence,
-        id,
-        config.difficulty,
-        config.documentType,
-      );
-    } else {
-      fallback = buildFillBlank(
-        sentence,
-        terms,
-        id,
-        config.difficulty,
-        config.documentType,
-      );
-    }
-    if (!fallback) continue;
     const duplicate = questions.some(
-      (q) => q.prompt.slice(0, 50) === fallback!.prompt.slice(0, 50),
+      (q) =>
+        q.type === question.type &&
+        q.prompt.slice(0, 48) === question.prompt.slice(0, 48),
     );
-    if (!duplicate) questions.push(fallback);
+    if (duplicate) return false;
+
+    questions.push(question);
+    return true;
+  };
+
+  // First pass: ensure core school formats appear when marks allow
+  const coreFirst: QuestionType[] = [
+    "fill-blank",
+    "mcq",
+    "match",
+    "one-word",
+    "two-mark",
+    "give-reason",
+  ];
+  for (const type of coreFirst) {
+    tryAdd(type);
   }
 
-  const totalMarks = questions.reduce((sum, q) => sum + q.marks, 0);
+  // Fill remaining marks by rotating all formats
+  let guard = 0;
+  let typeCursor = 0;
+  while (currentMarks(questions) < target && guard < target * 8) {
+    guard += 1;
+    const remaining = target - currentMarks(questions);
+    const candidates = ALL_FORMATS.filter(
+      (t) => marksFor(t, config.difficulty) <= remaining,
+    );
+    if (candidates.length === 0) break;
+
+    const type = candidates[typeCursor % candidates.length];
+    typeCursor += 1;
+    const added = tryAdd(type);
+    if (!added) {
+      // try a 1-mark filler if stuck
+      if (remaining >= 1) {
+        tryAdd("fill-blank") || tryAdd("mcq") || tryAdd("one-word");
+      }
+    }
+  }
+
+  // Last resort: pad with 1-mark fill-ups / MCQs
+  guard = 0;
+  while (currentMarks(questions) < target && guard < 40) {
+    guard += 1;
+    const remaining = target - currentMarks(questions);
+    if (remaining <= 0) break;
+    const ok =
+      (remaining >= 1 && tryAdd("fill-blank")) ||
+      (remaining >= 1 && tryAdd("mcq")) ||
+      (remaining >= 1 && tryAdd("one-word")) ||
+      (remaining >= 2 && tryAdd("two-mark"));
+    if (!ok) break;
+  }
+
+  if (questions.length === 0) {
+    throw new Error("Could not frame questions from this lesson text.");
+  }
+
+  const totalMarks = currentMarks(questions);
   const topicHint = terms.slice(0, 4).map(capitalize).join(", ");
 
   return {
@@ -608,7 +597,7 @@ export function generatePaper(
       topicHint.length > 0
         ? `Based on textbook content about: ${topicHint}`
         : "Based on the uploaded textbook pages",
-    questions: questions.slice(0, config.questionCount),
+    questions,
     totalMarks,
     createdAt: new Date().toISOString(),
     instructions: instructionsFor(config),
