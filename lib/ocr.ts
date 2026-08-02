@@ -19,7 +19,7 @@ type TextExtractorModule = {
 
 function loadTextExtractor(): TextExtractorModule | null {
   try {
-    // Optional native module — not available in Expo Go; used in custom/dev builds.
+    // Optional native module — available in custom/dev builds, not Expo Go.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require("expo-text-extractor") as TextExtractorModule;
   } catch {
@@ -27,35 +27,84 @@ function loadTextExtractor(): TextExtractorModule | null {
   }
 }
 
+/** True when we can attempt OCR (native module or JS Tesseract fallback). */
 export function isOcrSupported(): boolean {
-  if (Platform.OS === "web") return false;
+  return true;
+}
+
+async function imageUriToDataUrl(uri: string): Promise<string> {
+  if (uri.startsWith("data:")) return uri;
+
+  if (Platform.OS === "web") {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("Could not read image."));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // Legacy FileSystem API — works in Expo Go (require avoids TS pulling package src)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const FileSystem = require("expo-file-system/legacy") as {
+    readAsStringAsync: (
+      fileUri: string,
+      options: { encoding: string },
+    ) => Promise<string>;
+    EncodingType: { Base64: string };
+  };
+  const base64 = await FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  const lower = uri.toLowerCase();
+  const mime = lower.endsWith(".png")
+    ? "image/png"
+    : lower.endsWith(".webp")
+      ? "image/webp"
+      : "image/jpeg";
+  return `data:${mime};base64,${base64}`;
+}
+
+async function extractWithTesseract(uri: string): Promise<string> {
+  const { createWorker } = await import("tesseract.js");
+  const dataUrl = await imageUriToDataUrl(uri);
+  const worker = await createWorker("eng");
+  try {
+    const {
+      data: { text },
+    } = await worker.recognize(dataUrl);
+    return cleanOcrText(text);
+  } finally {
+    await worker.terminate();
+  }
+}
+
+async function extractWithNative(uri: string): Promise<string | null> {
   const mod = loadTextExtractor();
-  return Boolean(mod?.isSupported);
+  if (!mod?.isSupported) return null;
+  const lines = await mod.extractTextFromImage(uri);
+  return cleanOcrText(lines.join("\n"));
 }
 
 /**
- * On-device OCR when expo-text-extractor is installed in a native build.
- * In Expo Go, use the demo lesson or paste textbook text manually.
+ * Read text from a textbook photo.
+ * 1) Native OCR when available
+ * 2) Tesseract.js fallback for Expo Go / web
  */
 export async function extractTextFromImageUri(uri: string): Promise<string> {
-  if (Platform.OS === "web") {
-    throw new Error(
-      "On-device OCR works on iOS/Android builds. Use the demo lesson, or type/paste the textbook text.",
-    );
+  try {
+    const native = await extractWithNative(uri);
+    if (native) return native;
+  } catch {
+    // Fall through to Tesseract
   }
 
-  const mod = loadTextExtractor();
-  if (!mod?.isSupported) {
-    throw new Error(
-      "Text recognition needs a development build with expo-text-extractor. For now, use Try demo lesson or paste the lesson text.",
-    );
-  }
-
-  const lines = await mod.extractTextFromImage(uri);
-  const text = cleanOcrText(lines.join("\n"));
+  const text = await extractWithTesseract(uri);
   if (!text) {
     throw new Error(
-      "No readable text found. Try a clearer photo of the textbook page.",
+      "No readable text found. Try a clearer photo, or paste the lesson text below.",
     );
   }
   return text;

@@ -30,19 +30,13 @@ Then:
 - scan the QR code with Expo Go (camera + gallery work; on-device OCR needs a [development build](https://docs.expo.dev/develop/development-builds/introduction/))  
 - press `w` for web preview of the UI flow
 
-### Native OCR note
+### Text recognition (OCR)
 
-In **Expo Go**, use **Try demo lesson** or paste textbook text (camera/gallery still work for attaching photos).
+Padee reads textbook photos with:
+1. **Tesseract.js** — works in Expo Go (may take a few seconds)  
+2. Optional native OCR later via a development build  
 
-On-device OCR is optional for a custom/development build:
-
-```bash
-npx expo install expo-text-extractor
-npx expo prebuild
-npx expo run:android
-# or
-npx expo run:ios
-```
+If reading fails, paste the lesson text or use **Try demo lesson**.
 
 ## Stack
 

@@ -24,7 +24,6 @@ import {
 } from "@/lib/boards";
 import {
   extractTextFromImageUri,
-  isOcrSupported,
   SAMPLE_TEXTBOOK_TEXT,
 } from "@/lib/ocr";
 import { generatePaper } from "@/lib/questionGenerator";
@@ -117,7 +116,6 @@ export default function CreateScreen() {
 
   const ocrBusy = pages.some((p) => p.status === "processing");
   const hasText = combinedText.trim().length > 40;
-  const ocrReady = isOcrSupported();
 
   function syncTextFromPages(nextPages: CapturedPage[]) {
     const doneText = nextPages
@@ -182,18 +180,29 @@ export default function CreateScreen() {
           queueMicrotask(() => syncTextFromPages(next));
           return next;
         });
+        setError(null);
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : "Could not read this image.";
-        setPages((prev) =>
-          prev.map((p) =>
+          err instanceof Error
+            ? err.message
+            : "Could not read this image automatically.";
+        // Keep the photo and let the user paste/edit text instead of blocking
+        setPages((prev) => {
+          const next = prev.map((p) =>
             p.id === page.id
-              ? { ...p, status: "error", error: message }
+              ? {
+                  ...p,
+                  status: "done" as const,
+                  extractedText: "",
+                  error: message,
+                }
               : p,
-          ),
+          );
+          return next;
+        });
+        setError(
+          `${message} You can still paste the lesson text below, or tap Try demo lesson.`,
         );
-        // Keep flow usable: leave text area for manual paste
-        setError(message);
       }
     }
   }
@@ -467,10 +476,9 @@ export default function CreateScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Capture textbook pages</Text>
             <Text style={styles.cardBody}>
-              Photograph clear, flat pages.
-              {ocrReady
-                ? " Padee can read the text on-device."
-                : " In Expo Go, use Try demo lesson or paste the lesson text below (OCR needs a development build)."}
+              Photograph clear, flat pages. Padee reads the text from the photo
+              (this can take a few seconds). You can also edit or paste the
+              lesson text below, or use Try demo lesson.
             </Text>
 
             <Pressable
