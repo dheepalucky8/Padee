@@ -38,6 +38,8 @@ import type {
 import { Colors } from "@/constants/Colors";
 
 const STEPS = ["Setup", "Capture", "Generate", "Print"] as const;
+const MAX_CAMERA_PAGES = 10;
+const CAPTURE_BUILD = "camera-ocr-v1.2.0";
 
 function uid(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -46,6 +48,36 @@ function uid(): string {
 function difficultyLabel(value: Difficulty): string {
   if (value === "hard") return "Difficult";
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function friendlyOcrError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  // Old cached bundles mentioned expo-text-extractor — never show that to users.
+  if (
+    /expo-text-extractor|development build|text extractor|text recognition needs/i.test(
+      raw,
+    )
+  ) {
+    return "Could not read this photo. Use good light, fill the frame with the page, keep the phone online, and try again.";
+  }
+  return raw || "Could not read text from this photo.";
+}
+
+function askAddAnotherPhoto(
+  currentCount: number,
+  maxCount: number,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      `Photo ${currentCount} of ${maxCount} saved`,
+      "Add another textbook page?",
+      [
+        { text: "Done", style: "cancel", onPress: () => resolve(false) },
+        { text: "Take next photo", onPress: () => resolve(true) },
+      ],
+      { cancelable: false },
+    );
+  });
 }
 
 export default function CreateScreen() {
@@ -133,29 +165,30 @@ export default function CreateScreen() {
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 0.9,
-      allowsEditing: false,
-      exif: false,
-    });
+    let total = pages.length;
 
-    if (result.canceled || !result.assets?.length) return;
+    while (total < MAX_CAMERA_PAGES) {
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.9,
+        allowsEditing: false,
+        exif: false,
+      });
 
-    const newPages: CapturedPage[] = result.assets.map((asset) => ({
-      id: uid(),
-      uri: asset.uri,
-      extractedText: "",
-      status: "pending",
-    }));
+      if (result.canceled || !result.assets?.length) {
+        break;
+      }
 
-    setPages((prev) => [...prev, ...newPages]);
+      const asset = result.assets[0];
+      const page: CapturedPage = {
+        id: uid(),
+        uri: asset.uri,
+        extractedText: "",
+        status: "processing",
+      };
 
-    for (const page of newPages) {
-      setPages((prev) =>
-        prev.map((p) =>
-          p.id === page.id ? { ...p, status: "processing" } : p,
-        ),
-      );
+      setPages((prev) => [...prev, page]);
+      total += 1;
+
       try {
         const text = await extractTextFromImageUri(page.uri);
         setPages((prev) => {
@@ -169,10 +202,7 @@ export default function CreateScreen() {
         });
         setError(null);
       } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Could not read text from this photo.";
+        const message = friendlyOcrError(err);
         setPages((prev) =>
           prev.map((p) =>
             p.id === page.id
@@ -180,8 +210,19 @@ export default function CreateScreen() {
               : p,
           ),
         );
-        setError(`${message} Retake the photo and try again.`);
+        setError(`${message} You can remove it and take that page again.`);
       }
+
+      if (total >= MAX_CAMERA_PAGES) {
+        Alert.alert(
+          "10 photos added",
+          "That’s the maximum number of textbook pages for one paper.",
+        );
+        break;
+      }
+
+      const addMore = await askAddAnotherPhoto(total, MAX_CAMERA_PAGES);
+      if (!addMore) break;
     }
   }
 
@@ -451,32 +492,49 @@ export default function CreateScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Photograph the textbook</Text>
             <Text style={styles.cardBody}>
-              Point the camera at a clear page in good light. Padee reads the
-              text from the photo — no typing needed.
+              Take up to {MAX_CAMERA_PAGES} clear page photos. After each shot,
+              choose Take next photo or Done. Keep the phone online so Padee can
+              read the text from the camera.
+            </Text>
+            <Text style={styles.buildTag}>{CAPTURE_BUILD}</Text>
+            <Text style={styles.counter}>
+              Photos added: {pages.length} / {MAX_CAMERA_PAGES}
             </Text>
 
             <Pressable
-              style={styles.primaryBtn}
+              style={[
+                styles.primaryBtn,
+                (ocrBusy || pages.length >= MAX_CAMERA_PAGES) &&
+                  styles.primaryBtnDisabled,
+              ]}
               onPress={() => void captureWithCamera()}
-              disabled={ocrBusy}
+              disabled={ocrBusy || pages.length >= MAX_CAMERA_PAGES}
             >
               <Text style={styles.primaryBtnText}>
-                {ocrBusy ? "Reading page…" : pages.length ? "Take another photo" : "Open camera"}
+                {ocrBusy
+                  ? "Reading page…"
+                  : pages.length >= MAX_CAMERA_PAGES
+                    ? "Maximum 10 photos reached"
+                    : pages.length
+                      ? "Continue with camera"
+                      : "Open camera"}
               </Text>
             </Pressable>
 
             {pages.length > 0 && (
               <View style={styles.pageList}>
-                {pages.map((page) => (
+                {pages.map((page, index) => (
                   <View key={page.id} style={styles.pageItem}>
                     <Image source={{ uri: page.uri }} style={styles.thumb} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.pageStatus}>
-                        {page.status === "processing" && "Reading text from photo…"}
-                        {page.status === "done" && "Text ready from camera"}
+                        Page {index + 1}
+                        {" · "}
+                        {page.status === "processing" && "Reading text…"}
+                        {page.status === "done" && "Text ready"}
                         {page.status === "pending" && "Waiting…"}
                         {page.status === "error" &&
-                          (page.error || "Could not read — retake photo")}
+                          (page.error || "Could not read — remove & retake")}
                       </Text>
                       <Pressable onPress={() => removePage(page.id)}>
                         <Text style={styles.removeLink}>Remove</Text>
@@ -775,10 +833,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 10,
   },
+  primaryBtnDisabled: {
+    opacity: 0.55,
+  },
   primaryBtnText: {
     fontFamily: "Nunito_800ExtraBold",
     color: Colors.white,
     fontSize: 15,
+  },
+  buildTag: {
+    marginBottom: 8,
+    fontFamily: "Nunito_700Bold",
+    fontSize: 11,
+    color: Colors.brand,
+    letterSpacing: 0.3,
+  },
+  counter: {
+    marginBottom: 14,
+    fontFamily: "Nunito_800ExtraBold",
+    fontSize: 15,
+    color: Colors.brandDeep,
   },
   secondaryBtn: {
     backgroundColor: Colors.white,
