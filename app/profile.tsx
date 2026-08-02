@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { BrandLogo } from "@/components/BrandLogo";
 import { BOARDS, GRADES } from "@/lib/boards";
 import { loadProfile, saveProfile } from "@/lib/profile";
 import type { Board } from "@/lib/types";
@@ -63,6 +64,7 @@ export default function ProfileScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <BrandLogo size={56} wordmarkSize={30} style={styles.logo} />
         <Text style={styles.eyebrow}>Student profile</Text>
         <Text style={styles.title}>
           {isEditing ? "Update your profile" : "Tell us about the student"}
@@ -147,6 +149,9 @@ const styles = StyleSheet.create({
   content: {
     padding: 22,
     paddingBottom: 40,
+  },
+  logo: {
+    marginBottom: 18,
   },
   eyebrow: {
     fontFamily: "Nunito_800ExtraBold",

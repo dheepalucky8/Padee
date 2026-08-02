@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import { BrandLogo } from "@/components/BrandLogo";
 import { LinearGradient } from "@/components/LinearGradientFallback";
 import { Colors } from "@/constants/Colors";
 import { MARKS_TOTALS, QUESTION_FORMATS } from "@/lib/boards";
@@ -62,7 +63,7 @@ export default function HomeScreen() {
       >
         <View style={styles.topBar}>
           <View>
-            <Text style={styles.brand}>Padee</Text>
+            <BrandLogo size={44} wordmarkSize={28} />
             <Text style={styles.hello}>Hi, {profile.name}</Text>
           </View>
           <Pressable
@@ -194,13 +195,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 18,
   },
-  brand: {
-    fontFamily: "Fraunces_700Bold",
-    fontSize: 28,
-    color: Colors.brandDeep,
-  },
   hello: {
-    marginTop: 2,
+    marginTop: 8,
     fontFamily: "Nunito_700Bold",
     fontSize: 16,
     color: Colors.inkSoft,

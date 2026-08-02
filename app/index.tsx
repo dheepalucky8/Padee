@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import { BrandLogo } from "@/components/BrandLogo";
 import { LinearGradient } from "@/components/LinearGradientFallback";
 import { Colors } from "@/constants/Colors";
 import { loadProfile, type StudentProfile } from "@/lib/profile";
@@ -39,13 +40,25 @@ export default function WelcomeScreen() {
         resizeMode="cover"
       >
         <LinearGradient
-          colors={["rgba(10,40,34,0.05)", "rgba(10,40,34,0.28)", "rgba(8,32,28,0.92)"]}
-          locations={[0, 0.42, 1]}
+          colors={[
+            "rgba(10,40,34,0.08)",
+            "rgba(10,40,34,0.22)",
+            "rgba(8,32,28,0.94)",
+          ]}
+          locations={[0, 0.4, 1]}
           style={styles.scrim}
         >
           <View style={styles.copy}>
-            <Text style={styles.brand}>Padee</Text>
-            <Text style={styles.headline}>Study grows better in the shade of curiosity.</Text>
+            <BrandLogo
+              size={86}
+              showWordmark
+              wordmarkColor={Colors.white}
+              wordmarkSize={52}
+              imageStyle={styles.logoShadow}
+            />
+            <Text style={styles.headline}>
+              Study grows better in the shade of curiosity.
+            </Text>
             <Text style={styles.subhead}>
               Practice from your school books — CBSE, ICSE, and Matriculation.
             </Text>
@@ -74,7 +87,9 @@ export default function WelcomeScreen() {
                     style={styles.primaryBtn}
                     onPress={() => router.push("/profile")}
                   >
-                    <Text style={styles.primaryBtnText}>Create your profile</Text>
+                    <Text style={styles.primaryBtnText}>
+                      Create your profile
+                    </Text>
                   </Pressable>
                 )}
               </View>
@@ -105,17 +120,16 @@ const styles = StyleSheet.create({
   copy: {
     maxWidth: 420,
   },
-  brand: {
-    fontFamily: "Fraunces_700Bold",
-    fontSize: 58,
-    lineHeight: 60,
-    color: Colors.white,
-    textShadowColor: "rgba(0,0,0,0.25)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 10,
+  logoShadow: {
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.55)",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
   },
   headline: {
-    marginTop: 14,
+    marginTop: 18,
     fontFamily: "Fraunces_600SemiBold",
     fontSize: 26,
     lineHeight: 32,
