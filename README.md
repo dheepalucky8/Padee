@@ -8,9 +8,11 @@ Supports **CBSE**, **ICSE**, and **Matriculation** for **Grades 1–8**, with **
 
 1. Welcome screen with Padee’s schoolyard study artwork  
 2. Create a student **profile** (name, board, grade)  
-3. Capture textbook pages with the camera (or pick from gallery)  
-4. Generate Easy / Medium / Difficult worksheets or question papers  
-5. **Share / print an A4 PDF**
+3. Native **dashboard** — quick worksheet / paper, difficulty, and out-of marks  
+4. Capture textbook pages with the camera (or pick from gallery)  
+5. Generate Easy / Medium / Difficult papers with **all formats** (fill-ups, choose, match, one-word, 2-mark, give-reason)  
+6. Choose total marks: **10 / 15 / 25 / 35 / 50 / 75 / 100**  
+7. **Share / print an A4 PDF**
 
 A **Try demo lesson** path is included for quick testing without photos.
 
