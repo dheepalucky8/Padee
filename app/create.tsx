@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -28,6 +28,7 @@ import {
 } from "@/lib/ocr";
 import { generatePaper } from "@/lib/questionGenerator";
 import { buildPrintableHtml } from "@/lib/print";
+import { loadProfile } from "@/lib/profile";
 import type {
   Board,
   CapturedPage,
@@ -51,6 +52,7 @@ function difficultyLabel(value: Difficulty): string {
 
 export default function CreateScreen() {
   const [step, setStep] = useState(0);
+  const [studentName, setStudentName] = useState("");
   const [board, setBoard] = useState<Board>("CBSE");
   const [grade, setGrade] = useState(5);
   const [subject, setSubject] = useState<string>(SUBJECTS[2]);
@@ -65,6 +67,16 @@ export default function CreateScreen() {
   const [showAnswers, setShowAnswers] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const profile = await loadProfile();
+      if (!profile) return;
+      setStudentName(profile.name);
+      setBoard(profile.board);
+      setGrade(profile.grade);
+    })();
+  }, []);
 
   const config: WorksheetConfig = useMemo(
     () => ({
@@ -216,7 +228,7 @@ export default function CreateScreen() {
     if (!paper) return;
     setBusy(true);
     try {
-      const html = buildPrintableHtml(paper, showAnswers);
+      const html = buildPrintableHtml(paper, showAnswers, studentName);
       const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, {
@@ -241,7 +253,7 @@ export default function CreateScreen() {
     if (!paper) return;
     setBusy(true);
     try {
-      const html = buildPrintableHtml(paper, showAnswers);
+      const html = buildPrintableHtml(paper, showAnswers, studentName);
       await Print.printAsync({ html });
     } catch (err) {
       Alert.alert(
@@ -287,8 +299,9 @@ export default function CreateScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>School setup</Text>
             <Text style={styles.cardBody}>
-              Choose the board, grade, subject, and how hard the practice should
-              feel.
+              {studentName
+                ? `Creating practice for ${studentName}. Adjust board, grade, subject, and difficulty if needed.`
+                : "Choose the board, grade, subject, and how hard the practice should feel."}
             </Text>
 
             <Text style={styles.label}>Board</Text>

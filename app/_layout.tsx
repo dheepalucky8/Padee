@@ -62,6 +62,14 @@ export default function RootLayout() {
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen
+          name="profile"
+          options={{ title: "Your profile", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="home"
+          options={{ title: "Home", headerBackTitle: "Welcome" }}
+        />
+        <Stack.Screen
           name="create"
           options={{ title: "Create with Padee", headerBackTitle: "Home" }}
         />

@@ -6,10 +6,11 @@ Supports **CBSE**, **ICSE**, and **Matriculation** for **Grades 1–8**, with **
 
 ## Features
 
-1. Choose board, grade, subject, difficulty, and worksheet vs question-paper format  
-2. Capture textbook pages with the camera (or pick from gallery)  
-3. On-device OCR reads the lesson text (iOS / Android development build)  
-4. Generate framed questions and **share / print an A4 PDF**
+1. Welcome screen with Padee’s schoolyard study artwork  
+2. Create a student **profile** (name, board, grade)  
+3. Capture textbook pages with the camera (or pick from gallery)  
+4. Generate Easy / Medium / Difficult worksheets or question papers  
+5. **Share / print an A4 PDF**
 
 A **Try demo lesson** path is included for quick testing without photos.
 

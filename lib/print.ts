@@ -16,6 +16,7 @@ function difficultyLabel(value: string): string {
 export function buildPrintableHtml(
   paper: GeneratedPaper,
   showAnswers = false,
+  studentName = "",
 ): string {
   const { config, questions, totalMarks, instructions, sourceSummary } = paper;
   const title =
@@ -109,8 +110,8 @@ export function buildPrintableHtml(
     </header>
 
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin:14px 0 18px;">
-      <div><div class="muted">Name</div><div style="border-bottom:1px solid #777;height:18px;"></div></div>
-      <div><div class="muted">Class</div><div style="border-bottom:1px solid #777;height:18px;"></div></div>
+      <div><div class="muted">Name</div><div style="border-bottom:1px solid #777;min-height:18px;">${escapeHtml(studentName)}</div></div>
+      <div><div class="muted">Class</div><div style="border-bottom:1px solid #777;min-height:18px;">Grade ${config.grade}</div></div>
       <div><div class="muted">Date</div><div style="border-bottom:1px solid #777;height:18px;"></div></div>
       <div><div class="muted">Roll No.</div><div style="border-bottom:1px solid #777;height:18px;"></div></div>
     </div>
