@@ -169,40 +169,24 @@ export default function CreateScreen() {
           p.id === page.id ? { ...p, status: "processing" } : p,
         ),
       );
-      try {
-        const text = await extractTextFromImageUri(page.uri);
-        setPages((prev) => {
-          const next = prev.map((p) =>
-            p.id === page.id
-              ? { ...p, status: "done" as const, extractedText: text }
-              : p,
-          );
-          queueMicrotask(() => syncTextFromPages(next));
-          return next;
-        });
-        setError(null);
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Could not read this image automatically.";
-        // Keep the photo and let the user paste/edit text instead of blocking
-        setPages((prev) => {
-          const next = prev.map((p) =>
-            p.id === page.id
-              ? {
-                  ...p,
-                  status: "done" as const,
-                  extractedText: "",
-                  error: message,
-                }
-              : p,
-          );
-          return next;
-        });
-        setError(
-          `${message} You can still paste the lesson text below, or tap Try demo lesson.`,
+      const text = await extractTextFromImageUri(page.uri);
+      setPages((prev) => {
+        const next = prev.map((p) =>
+          p.id === page.id
+            ? { ...p, status: "done" as const, extractedText: text }
+            : p,
         );
+        if (text.trim()) {
+          queueMicrotask(() => syncTextFromPages(next));
+        }
+        return next;
+      });
+      if (!text.trim()) {
+        setError(
+          "Photo saved. If text wasn’t read automatically, paste the lesson text below or tap Try demo lesson.",
+        );
+      } else {
+        setError(null);
       }
     }
   }
@@ -476,9 +460,9 @@ export default function CreateScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Capture textbook pages</Text>
             <Text style={styles.cardBody}>
-              Photograph clear, flat pages. Padee reads the text from the photo
-              (this can take a few seconds). You can also edit or paste the
-              lesson text below, or use Try demo lesson.
+              Photograph a clear textbook page. Padee will try to read the text
+              (may take a few seconds). You can always paste or edit the lesson
+              text below, or use Try demo lesson.
             </Text>
 
             <Pressable

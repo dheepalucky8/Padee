@@ -12,26 +12,6 @@ export function cleanOcrText(raw: string): string {
     .trim();
 }
 
-type TextExtractorModule = {
-  isSupported?: boolean;
-  extractTextFromImage: (uri: string) => Promise<string[]>;
-};
-
-function loadTextExtractor(): TextExtractorModule | null {
-  try {
-    // Optional native module — available in custom/dev builds, not Expo Go.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require("expo-text-extractor") as TextExtractorModule;
-  } catch {
-    return null;
-  }
-}
-
-/** True when we can attempt OCR (native module or JS Tesseract fallback). */
-export function isOcrSupported(): boolean {
-  return true;
-}
-
 async function imageUriToDataUrl(uri: string): Promise<string> {
   if (uri.startsWith("data:")) return uri;
 
@@ -46,7 +26,7 @@ async function imageUriToDataUrl(uri: string): Promise<string> {
     });
   }
 
-  // Legacy FileSystem API — works in Expo Go (require avoids TS pulling package src)
+  // Legacy FileSystem API — works in Expo Go
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const FileSystem = require("expo-file-system/legacy") as {
     readAsStringAsync: (
@@ -67,47 +47,31 @@ async function imageUriToDataUrl(uri: string): Promise<string> {
   return `data:${mime};base64,${base64}`;
 }
 
-async function extractWithTesseract(uri: string): Promise<string> {
-  const { createWorker } = await import("tesseract.js");
-  const dataUrl = await imageUriToDataUrl(uri);
-  const worker = await createWorker("eng");
-  try {
-    const {
-      data: { text },
-    } = await worker.recognize(dataUrl);
-    return cleanOcrText(text);
-  } finally {
-    await worker.terminate();
-  }
-}
-
-async function extractWithNative(uri: string): Promise<string | null> {
-  const mod = loadTextExtractor();
-  if (!mod?.isSupported) return null;
-  const lines = await mod.extractTextFromImage(uri);
-  return cleanOcrText(lines.join("\n"));
-}
-
 /**
- * Read text from a textbook photo.
- * 1) Native OCR when available
- * 2) Tesseract.js fallback for Expo Go / web
+ * Best-effort text reading from a textbook photo using Tesseract.js.
+ * Returns empty string (never throws module-missing errors) if reading fails.
  */
 export async function extractTextFromImageUri(uri: string): Promise<string> {
   try {
-    const native = await extractWithNative(uri);
-    if (native) return native;
+    const { createWorker } = await import("tesseract.js");
+    const dataUrl = await imageUriToDataUrl(uri);
+    const worker = await createWorker("eng", 1, {
+      // Helps in React Native / Expo environments without blob workers
+      workerBlobURL: false,
+      logger: () => undefined,
+    });
+    try {
+      const {
+        data: { text },
+      } = await worker.recognize(dataUrl);
+      return cleanOcrText(text);
+    } finally {
+      await worker.terminate();
+    }
   } catch {
-    // Fall through to Tesseract
+    // Expo Go / RN can fail on workers or WASM — caller handles empty text.
+    return "";
   }
-
-  const text = await extractWithTesseract(uri);
-  if (!text) {
-    throw new Error(
-      "No readable text found. Try a clearer photo, or paste the lesson text below.",
-    );
-  }
-  return text;
 }
 
 /** Sample textbook excerpt for demo without a camera. */

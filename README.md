@@ -27,23 +27,20 @@ Then:
 
 - press `a` for Android emulator / device  
 - press `i` for iOS simulator (macOS)  
-- scan the QR code with Expo Go (camera + gallery work; on-device OCR needs a [development build](https://docs.expo.dev/develop/development-builds/introduction/))  
+- scan the QR code with Expo Go  
 - press `w` for web preview of the UI flow
 
 ### Text recognition (OCR)
 
-Padee reads textbook photos with:
-1. **Tesseract.js** — works in Expo Go (may take a few seconds)  
-2. Optional native OCR later via a development build  
-
-If reading fails, paste the lesson text or use **Try demo lesson**.
+Padee tries to read textbook photos with **Tesseract.js** (may take a few seconds).  
+If reading fails, paste the lesson text or use **Try demo lesson** — the app will not block you.
 
 ## Stack
 
 - Expo (**SDK 54**, Expo Go compatible) + Expo Router  
 - React Native  
 - `expo-image-picker` for camera / gallery  
-- Optional on-device OCR via `expo-text-extractor` in a development build  
+- `tesseract.js` for reading textbook photos  
 - `expo-print` + `expo-sharing` for printable PDFs  
 
 ## Project layout
