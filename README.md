@@ -23,6 +23,31 @@ npx expo start -c
 
 Scan the QR code with **Expo Go** (SDK 54).
 
+## Install a faster Android APK (no Expo Go)
+
+This builds an installable **APK in the cloud** (no Android Studio on your PC).
+
+1. Create a free Expo account: https://expo.dev/signup  
+2. On your computer, in the Padee folder:
+
+```bash
+git pull
+npm install
+npm install -g eas-cli
+eas login
+eas build:configure
+npm run build:android:preview
+```
+
+3. When asked, create a new Expo project / generate credentials (choose defaults / yes).  
+4. Wait for the build to finish on https://expo.dev (often 10–20 minutes the first time).  
+5. Open the build page → **Download** the `.apk`.  
+6. Copy the APK to your phone and open it to install.  
+   - If Android blocks it: **Settings → Security → allow install from unknown apps** (Files/Chrome).  
+7. Open **Padee** from your app drawer — it loads much faster than Expo Go.
+
+Later updates: run `npm run build:android:preview` again, download the new APK, and install over the old one.
+
 ### Camera text reading
 
 Photos are read with the OCR.space API (works in Expo Go).  
