@@ -14,43 +14,78 @@ Supports **CBSE**, **ICSE**, and **Matriculation** for **Grades 1–8**, with **
 6. Choose total marks: **10 / 15 / 25 / 35 / 50 / 75 / 100**  
 7. **Share / print an A4 PDF**
 
-## Run the app
+## Install on your phone (no Expo Go, no Expo account)
+
+Build a normal Android APK on your computer with **Android Studio**. You do **not** need an Expo account.
+
+### 1. One-time setup on your PC
+
+1. Install [Android Studio](https://developer.android.com/studio)
+2. Open Android Studio → **More Actions → SDK Manager** and install:
+   - Android SDK Platform **35**
+   - Android SDK Build-Tools **35**
+   - Android SDK Platform-Tools
+3. Install [Node.js LTS](https://nodejs.org/)
+
+### 2. Build the APK
+
+In the Padee project folder:
+
+```bash
+git checkout cursor/padee-worksheet-app-bcef
+git pull
+npm install
+npm run build:android:local
+```
+
+When it finishes, the APK is here:
+
+`android/app/build/outputs/apk/debug/app-debug.apk`
+
+### 3. Install on your phone
+
+1. Copy `app-debug.apk` to your phone (USB, Drive, WhatsApp, etc.)
+2. Open the file and install it  
+   - If Android blocks it: **Settings → Security → allow install from unknown apps**
+3. Open **Padee** from your app drawer — Expo Go is not used
+
+### Optional: phone plugged into PC via USB
+
+```bash
+npm install
+npx expo prebuild --platform android
+npm run android
+```
+
+This installs and launches Padee directly on the connected phone/emulator.
+
+## Optional: Expo Go (quick try only)
+
+Needs the Expo Go app on your phone:
 
 ```bash
 npm install
 npx expo start -c
 ```
 
-Scan the QR code with **Expo Go** (SDK 54).
+Scan the QR code with **Expo Go** (SDK 54). This is slower than the APK above.
 
-## Install a faster Android APK (no Expo Go)
+## Optional: cloud APK via Expo (needs Expo signup)
 
-This builds an installable **APK in the cloud** (no Android Studio on your PC).
-
-1. Create a free Expo account: https://expo.dev/signup  
-2. On your computer, in the Padee folder:
+If you prefer not to install Android Studio, Expo’s cloud builder can make the APK — that path **does** require a free Expo account:
 
 ```bash
-git pull
-npm install
 npm install -g eas-cli
 eas login
 eas build:configure
 npm run build:android:preview
 ```
 
-3. When asked, create a new Expo project / generate credentials (choose defaults / yes).  
-4. Wait for the build to finish on https://expo.dev (often 10–20 minutes the first time).  
-5. Open the build page → **Download** the `.apk`.  
-6. Copy the APK to your phone and open it to install.  
-   - If Android blocks it: **Settings → Security → allow install from unknown apps** (Files/Chrome).  
-7. Open **Padee** from your app drawer — it loads much faster than Expo Go.
-
-Later updates: run `npm run build:android:preview` again, download the new APK, and install over the old one.
+Then download the `.apk` from https://expo.dev and install it on your phone.
 
 ### Camera text reading
 
-Photos are read with the OCR.space API (works in Expo Go).  
+Photos are read with the OCR.space API.  
 Optional: set your own free key for higher limits:
 
 ```bash
@@ -74,4 +109,5 @@ app/           Screens (welcome, profile, dashboard, create)
 lib/           Boards, OCR, question generator, print HTML
 constants/     Brand colors
 assets/        Logo, icons & splash
+android/       Generated locally by prebuild (not committed)
 ```
