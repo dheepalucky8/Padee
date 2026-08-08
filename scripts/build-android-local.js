@@ -5,10 +5,9 @@
  *
  * Needs only:
  *   - Node.js
- *   - Java JDK 17+
- *   - Android SDK command-line tools (downloaded automatically)
  *   - Phone with USB debugging enabled
  *
+ * Java JDK and Android SDK command-line tools are downloaded automatically.
  * No Android Studio. No Expo account. No GitHub Actions.
  */
 const { spawnSync } = require("node:child_process");
@@ -70,29 +69,177 @@ function runCapture(cmd, args, opts = {}) {
   };
 }
 
-function ensureJava() {
-  const check = runCapture("java", ["-version"]);
-  // java -version writes to stderr
+function javaMajorFromOutput(out) {
+  const match = String(out).match(/version "(\d+)/);
+  return match ? Number(match[1]) : 0;
+}
+
+function probeJava(javaCmd, env) {
+  const check = runCapture(javaCmd, ["-version"], { env });
   const out = `${check.stdout}\n${check.stderr}`;
-  if (check.status !== 0) {
-    fail(
-      [
-        "Java JDK is required (version 17 or newer).",
-        "",
-        "Install one of these, then reopen your terminal:",
-        "  Windows:  winget install EclipseAdoptium.Temurin.17.JDK",
-        "  Or download: https://adoptium.net/temurin/releases/?version=17",
-        "",
-        "Then run:  npm run build:android:local",
-      ].join("\n")
-    );
+  if (check.status !== 0) return null;
+  const major = javaMajorFromOutput(out);
+  if (major > 0 && major < 17) return null;
+  return { major: major || 17, javaCmd };
+}
+
+function findJavaHomeCandidates() {
+  const homes = [];
+  if (process.env.JAVA_HOME) homes.push(process.env.JAVA_HOME);
+
+  const localJdk = path.join(root, ".jdk");
+  if (fs.existsSync(localJdk)) {
+    for (const name of fs.readdirSync(localJdk)) {
+      homes.push(path.join(localJdk, name));
+    }
   }
-  const match = out.match(/version "(\d+)/);
-  const major = match ? Number(match[1]) : 0;
-  if (major > 0 && major < 17) {
-    fail(`Java ${major} found, but JDK 17+ is required. Install Temurin 17 and retry.`);
+
+  if (isWin) {
+    const programFiles = [
+      process.env["ProgramFiles"] || "C:\\Program Files",
+      process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)",
+      process.env.LOCALAPPDATA || "",
+    ].filter(Boolean);
+
+    const vendors = [
+      "Eclipse Adoptium",
+      "Microsoft",
+      "Java",
+      "Amazon Corretto",
+      "Zulu",
+      "Semeru",
+    ];
+
+    for (const base of programFiles) {
+      for (const vendor of vendors) {
+        const dir = path.join(base, vendor);
+        if (!fs.existsSync(dir)) continue;
+        for (const name of fs.readdirSync(dir)) {
+          if (/jdk-?1?[7-9]|jdk-?[2-9]\d/i.test(name) || /jdk/i.test(name)) {
+            homes.push(path.join(dir, name));
+          }
+        }
+      }
+    }
   }
-  log(`✔ Java ready${major ? ` (JDK ${major})` : ""}`);
+
+  return homes;
+}
+
+function adoptiumOs() {
+  if (isWin) return "windows";
+  if (isMac) return "mac";
+  return "linux";
+}
+
+function adoptiumArch() {
+  const arch = process.arch;
+  if (arch === "x64" || arch === "x86_64") return "x64";
+  if (arch === "arm64") return "aarch64";
+  return "x64";
+}
+
+function jdkDownloadUrl() {
+  // Portable Temurin JDK 17 — no installer / no admin rights needed.
+  return (
+    "https://api.adoptium.net/v3/binary/latest/17/ga/" +
+    `${adoptiumOs()}/${adoptiumArch()}/jdk/hotspot/normal/eclipse?project=jdk`
+  );
+}
+
+function findJavaBinary(home) {
+  const bin = path.join(home, "bin", isWin ? "java.exe" : "java");
+  return fs.existsSync(bin) ? bin : null;
+}
+
+function findExtractedJdkHome(extractDir) {
+  const stack = [extractDir];
+  while (stack.length) {
+    const dir = stack.pop();
+    if (findJavaBinary(dir)) return dir;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory()) stack.push(path.join(dir, entry.name));
+    }
+  }
+  return null;
+}
+
+async function downloadPortableJdk() {
+  const jdkRoot = path.join(root, ".jdk");
+  const tmpDir = path.join(root, ".jdk-tmp");
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  fs.mkdirSync(tmpDir, { recursive: true });
+  fs.mkdirSync(jdkRoot, { recursive: true });
+
+  const archiveName = isWin ? "jdk17.zip" : "jdk17.tar.gz";
+  const archivePath = path.join(tmpDir, archiveName);
+
+  log("→ Downloading portable Java JDK 17 (one-time, no installer)...");
+  await download(jdkDownloadUrl(), archivePath);
+
+  log("→ Extracting JDK into .jdk/");
+  if (isWin) {
+    unzip(archivePath, tmpDir);
+  } else {
+    run("tar", ["-xzf", archivePath, "-C", tmpDir]);
+  }
+
+  const home = findExtractedJdkHome(tmpDir);
+  if (!home) {
+    fail("Downloaded JDK archive, but could not find java inside it.");
+  }
+
+  const destName = path.basename(home);
+  const dest = path.join(jdkRoot, destName);
+  fs.rmSync(dest, { recursive: true, force: true });
+  fs.renameSync(home, dest);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  log(`✔ JDK installed at ${dest}`);
+  return dest;
+}
+
+async function ensureJava() {
+  // 1) java on PATH
+  const onPath = probeJava("java", process.env);
+  if (onPath) {
+    log(`✔ Java ready (JDK ${onPath.major})`);
+    return {};
+  }
+
+  // 2) known install locations / previous portable download
+  for (const home of findJavaHomeCandidates()) {
+    const javaBin = findJavaBinary(home);
+    if (!javaBin) continue;
+    const env = {
+      JAVA_HOME: home,
+      PATH: `${path.join(home, "bin")}${path.delimiter}${process.env.PATH || ""}`,
+    };
+    const probed = probeJava(javaBin, { ...process.env, ...env });
+    if (probed) {
+      log(`✔ Java ready (JDK ${probed.major}) at ${home}`);
+      return env;
+    }
+  }
+
+  // 3) download portable JDK into the project
+  const home = await downloadPortableJdk();
+  const env = {
+    JAVA_HOME: home,
+    PATH: `${path.join(home, "bin")}${path.delimiter}${process.env.PATH || ""}`,
+  };
+  const javaBin = findJavaBinary(home);
+  const probed = probeJava(javaBin, { ...process.env, ...env });
+  if (!probed) {
+    fail("Portable JDK downloaded but java still does not run.");
+  }
+  log(`✔ Java ready (JDK ${probed.major})`);
+  return env;
 }
 
 function ensureNodeModules() {
@@ -130,7 +277,22 @@ function download(url, dest) {
           reject(new Error(`Download failed (${res.statusCode}): ${url}`));
           return;
         }
-        pipeline(res, file).then(resolve, reject);
+        const total = Number(res.headers["content-length"] || 0);
+        let received = 0;
+        let lastPct = -1;
+        res.on("data", (chunk) => {
+          received += chunk.length;
+          if (!total) return;
+          const pct = Math.floor((received / total) * 100);
+          if (pct >= lastPct + 10) {
+            lastPct = pct;
+            process.stdout.write(`  download ${pct}%\r`);
+          }
+        });
+        pipeline(res, file).then(() => {
+          if (total) process.stdout.write("  download 100%\n");
+          resolve();
+        }, reject);
       })
       .on("error", reject);
   });
@@ -149,7 +311,7 @@ function unzip(zipPath, destDir) {
   run("unzip", ["-qo", zipPath, "-d", destDir]);
 }
 
-async function ensureAndroidSdk() {
+async function ensureAndroidSdk(baseEnv) {
   const rootSdk = sdkRoot();
   const latestTools = path.join(rootSdk, "cmdline-tools", "latest");
   const sdkmanager = path.join(
@@ -184,9 +346,12 @@ async function ensureAndroidSdk() {
   const platformTools = path.join(rootSdk, "platform-tools");
   const env = {
     ...process.env,
+    ...baseEnv,
     ANDROID_HOME: rootSdk,
     ANDROID_SDK_ROOT: rootSdk,
-    PATH: `${platformTools}${path.delimiter}${process.env.PATH || ""}`,
+    PATH: `${platformTools}${path.delimiter}${
+      baseEnv.PATH || process.env.PATH || ""
+    }`,
   };
 
   // Accept licenses non-interactively
@@ -330,11 +495,11 @@ function installAndLaunch(env, apk) {
 
 async function main() {
   log("Padee local APK build → install → launch on phone");
-  log("No Android Studio · No Expo account · No GitHub Actions\n");
+  log("Needs Node.js + USB phone only (JDK/SDK download automatically)\n");
 
-  ensureJava();
+  const javaEnv = await ensureJava();
   ensureNodeModules();
-  const env = await ensureAndroidSdk();
+  const env = await ensureAndroidSdk(javaEnv);
   // Fail early if the phone is missing, before the long Gradle build.
   requirePhone(env);
   ensureAndroidProject(env);
