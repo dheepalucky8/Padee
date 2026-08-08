@@ -42,7 +42,7 @@ Then it builds the APK, installs it on your phone, and opens **Padee**.
 
 APK path:
 
-`android\app\build\outputs\apk\debug\app-debug.apk`
+`android\app\build\outputs\apk\release\app-release.apk`
 
 ### Camera text reading
 

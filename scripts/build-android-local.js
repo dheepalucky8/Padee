@@ -40,10 +40,19 @@ function fail(msg, code = 1) {
   process.exit(code);
 }
 
+function needsShell(cmd) {
+  if (!isWin) return false;
+  // Absolute .exe (adb/java) must NOT use shell — Windows drops args otherwise.
+  if (path.isAbsolute(cmd) && /\.exe$/i.test(cmd)) return false;
+  // npm/npx/gradlew are .cmd/.bat wrappers and need a shell on Windows.
+  return true;
+}
+
 function run(cmd, args, opts = {}) {
+  const shell = opts.shell ?? needsShell(cmd);
   const result = spawnSync(cmd, args, {
     stdio: "inherit",
-    shell: isWin,
+    shell,
     env: opts.env || process.env,
     cwd: opts.cwd || root,
   });
@@ -56,9 +65,10 @@ function run(cmd, args, opts = {}) {
 }
 
 function runCapture(cmd, args, opts = {}) {
+  const shell = opts.shell ?? needsShell(cmd);
   const result = spawnSync(cmd, args, {
     encoding: "utf8",
-    shell: isWin,
+    shell,
     env: opts.env || process.env,
     cwd: opts.cwd || root,
   });
@@ -173,26 +183,33 @@ function findExtractedJdkHome(extractDir) {
 async function downloadPortableJdk() {
   const jdkRoot = path.join(root, ".jdk");
   const tmpDir = path.join(root, ".jdk-tmp");
-  fs.rmSync(tmpDir, { recursive: true, force: true });
-  fs.mkdirSync(tmpDir, { recursive: true });
   fs.mkdirSync(jdkRoot, { recursive: true });
 
-  const archiveName = isWin ? "jdk17.zip" : "jdk17.tar.gz";
-  const archivePath = path.join(tmpDir, archiveName);
-
-  log("→ Downloading portable Java JDK 17 (one-time, no installer)...");
-  await download(jdkDownloadUrl(), archivePath);
-
-  log("→ Extracting JDK into .jdk/");
-  if (isWin) {
-    unzip(archivePath, tmpDir);
-  } else {
-    run("tar", ["-xzf", archivePath, "-C", tmpDir]);
-  }
-
-  const home = findExtractedJdkHome(tmpDir);
+  // Reuse a previous extract if a failed rename left the JDK in .jdk-tmp.
+  let home = findExtractedJdkHome(tmpDir);
   if (!home) {
-    fail("Downloaded JDK archive, but could not find java inside it.");
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.mkdirSync(tmpDir, { recursive: true });
+
+    const archiveName = isWin ? "jdk17.zip" : "jdk17.tar.gz";
+    const archivePath = path.join(tmpDir, archiveName);
+
+    log("→ Downloading portable Java JDK 17 (one-time, no installer)...");
+    await download(jdkDownloadUrl(), archivePath);
+
+    log("→ Extracting JDK into .jdk/");
+    if (isWin) {
+      unzip(archivePath, tmpDir);
+    } else {
+      run("tar", ["-xzf", archivePath, "-C", tmpDir]);
+    }
+
+    home = findExtractedJdkHome(tmpDir);
+    if (!home) {
+      fail("Downloaded JDK archive, but could not find java inside it.");
+    }
+  } else {
+    log("→ Found JDK left from a previous run; finishing install...");
   }
 
   const destName = path.basename(home);
@@ -429,8 +446,27 @@ function buildApk(env) {
       // ignore
     }
   }
-  log("→ Building debug APK (this can take several minutes the first time)");
-  run(gradle, ["assembleDebug", "--no-daemon"], { cwd: androidDir, env });
+  // Release embeds the JS bundle so the phone can run without Metro/Expo Go.
+  log("→ Building release APK with embedded app bundle (first time can take a while)");
+  run(gradle, ["assembleRelease", "--no-daemon"], { cwd: androidDir, env });
+}
+
+function findReleaseApk() {
+  const candidates = [
+    path.join(root, "android", "app", "build", "outputs", "apk", "release", "app-release.apk"),
+    path.join(root, "android", "app", "build", "outputs", "apk", "release", "app-release-unsigned.apk"),
+  ];
+  for (const apk of candidates) {
+    if (fs.existsSync(apk)) return apk;
+  }
+  // Fallback: any release apk under outputs
+  const releaseDir = path.join(root, "android", "app", "build", "outputs", "apk", "release");
+  if (!fs.existsSync(releaseDir)) return null;
+  const found = fs
+    .readdirSync(releaseDir)
+    .filter((name) => name.endsWith(".apk"))
+    .map((name) => path.join(releaseDir, name));
+  return found[0] || null;
 }
 
 function adbBin(env) {
@@ -500,11 +536,38 @@ function installAndLaunch(env, apk) {
   const adb = adbBin(env);
   const deviceId = requirePhone(env);
 
-  log("→ Installing APK on phone");
-  run(adb, ["-s", deviceId, "install", "-r", apk], { env });
+  log(`→ Using adb: ${adb}`);
+  log("→ Installing APK on phone (replacing any older Padee build)");
+  const install = runCapture(
+    adb,
+    ["-s", deviceId, "install", "-r", "-d", "-t", apk],
+    { env }
+  );
+  const installOut = `${install.stdout}\n${install.stderr}`;
+  process.stdout.write(installOut);
+  if (install.status !== 0 || !/Success/i.test(installOut)) {
+    fail(
+      [
+        "APK install on the phone failed.",
+        "Check the phone screen for an install prompt and tap Allow / Install.",
+        "Also confirm USB debugging is still authorized, then run again:",
+        "  npm run build:android:local",
+      ].join("\n")
+    );
+  }
 
-  log("→ Launching Padee");
-  run(
+  const verify = runCapture(
+    adb,
+    ["-s", deviceId, "shell", "pm", "path", APP_ID],
+    { env }
+  );
+  if (verify.status !== 0 || !String(verify.stdout).includes("package:")) {
+    fail(`Install reported success, but package ${APP_ID} was not found on the phone.`);
+  }
+  log(`✔ Installed: ${String(verify.stdout).trim()}`);
+
+  log("→ Launching Padee on phone");
+  const launch = runCapture(
     adb,
     [
       "-s",
@@ -512,15 +575,31 @@ function installAndLaunch(env, apk) {
       "shell",
       "am",
       "start",
-      "-a",
-      "android.intent.action.MAIN",
-      "-c",
-      "android.intent.category.LAUNCHER",
       "-n",
       LAUNCH_ACTIVITY,
     ],
     { env }
   );
+  const launchOut = `${launch.stdout}\n${launch.stderr}`;
+  process.stdout.write(launchOut);
+  if (launch.status !== 0 || /Error/i.test(launchOut)) {
+    // Fallback: monkey launcher intent
+    run(
+      adb,
+      [
+        "-s",
+        deviceId,
+        "shell",
+        "monkey",
+        "-p",
+        APP_ID,
+        "-c",
+        "android.intent.category.LAUNCHER",
+        "1",
+      ],
+      { env }
+    );
+  }
 }
 
 async function main() {
@@ -535,24 +614,16 @@ async function main() {
   ensureAndroidProject(env);
   buildApk(env);
 
-  const apk = path.join(
-    root,
-    "android",
-    "app",
-    "build",
-    "outputs",
-    "apk",
-    "debug",
-    "app-debug.apk"
-  );
-  if (!fs.existsSync(apk)) {
-    fail("Build finished but APK was not found.");
+  const apk = findReleaseApk();
+  if (!apk) {
+    fail("Build finished but release APK was not found.");
   }
 
   log("\n✔ APK ready:");
   log(apk);
   installAndLaunch(env, apk);
-  log("\n✔ Padee should now be open on your phone.");
+  log("\n✔ Padee is installed and should be open on your phone.");
+  log("Look for the app named Padee in your app drawer if it did not come to the front.");
 }
 
 main().catch((err) => {
