@@ -63,11 +63,11 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen
           name="profile"
-          options={{ title: "Your profile", headerBackTitle: "Back" }}
+          options={{ title: "Child profile", headerBackTitle: "Back" }}
         />
         <Stack.Screen
           name="home"
-          options={{ title: "Dashboard", headerBackTitle: "Welcome" }}
+          options={{ title: "Family dashboard", headerBackTitle: "Welcome" }}
         />
         <Stack.Screen
           name="create"

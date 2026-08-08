@@ -10,20 +10,20 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { BrandLogo } from "@/components/BrandLogo";
 import { LinearGradient } from "@/components/LinearGradientFallback";
 import { Colors } from "@/constants/Colors";
-import { loadProfile, type StudentProfile } from "@/lib/profile";
+import { loadFamily } from "@/lib/profile";
 
 export default function WelcomeScreen() {
   const router = useRouter();
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
+  const [kidCount, setKidCount] = useState(0);
   const [ready, setReady] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
       (async () => {
-        const saved = await loadProfile();
+        const family = await loadFamily();
         if (!active) return;
-        setProfile(saved);
+        setKidCount(family.kids.length);
         setReady(true);
       })();
       return () => {
@@ -65,30 +65,33 @@ export default function WelcomeScreen() {
 
             {ready && (
               <View style={styles.actions}>
-                {profile ? (
+                {kidCount > 0 ? (
                   <>
                     <Pressable
                       style={styles.primaryBtn}
+                      android_ripple={{ color: "rgba(255,255,255,0.2)" }}
                       onPress={() => router.push("/home")}
                     >
                       <Text style={styles.primaryBtnText}>
-                        Continue as {profile.name}
+                        Open family dashboard
                       </Text>
                     </Pressable>
                     <Pressable
                       style={styles.secondaryBtn}
-                      onPress={() => router.push("/profile")}
+                      android_ripple={{ color: "rgba(255,255,255,0.12)" }}
+                      onPress={() => router.push("/profile?mode=new")}
                     >
-                      <Text style={styles.secondaryBtnText}>Edit profile</Text>
+                      <Text style={styles.secondaryBtnText}>Add a child</Text>
                     </Pressable>
                   </>
                 ) : (
                   <Pressable
                     style={styles.primaryBtn}
-                    onPress={() => router.push("/profile")}
+                    android_ripple={{ color: "rgba(255,255,255,0.2)" }}
+                    onPress={() => router.push("/profile?mode=new")}
                   >
                     <Text style={styles.primaryBtnText}>
-                      Create your profile
+                      Add your first child
                     </Text>
                   </Pressable>
                 )}
@@ -148,10 +151,11 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     backgroundColor: Colors.accent,
-    borderRadius: 18,
+    borderRadius: 16,
     paddingVertical: 15,
     paddingHorizontal: 20,
     alignItems: "center",
+    overflow: "hidden",
   },
   primaryBtnText: {
     fontFamily: "Nunito_800ExtraBold",
@@ -159,13 +163,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   secondaryBtn: {
-    borderRadius: 18,
+    borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: "center",
     borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.55)",
     backgroundColor: "rgba(255,255,255,0.08)",
+    overflow: "hidden",
   },
   secondaryBtnText: {
     fontFamily: "Nunito_800ExtraBold",

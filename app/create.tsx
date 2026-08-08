@@ -25,7 +25,7 @@ import {
 import { extractTextFromImageUri } from "@/lib/ocr";
 import { generatePaper } from "@/lib/questionGenerator";
 import { buildPrintableHtml } from "@/lib/print";
-import { loadProfile } from "@/lib/profile";
+import { loadKidById, loadProfile, setActiveKid } from "@/lib/profile";
 import type {
   Board,
   CapturedPage,
@@ -85,6 +85,7 @@ export default function CreateScreen() {
     type?: string;
     difficulty?: string;
     marks?: string;
+    kidId?: string;
   }>();
   const [step, setStep] = useState(0);
   const [studentName, setStudentName] = useState("");
@@ -122,13 +123,17 @@ export default function CreateScreen() {
 
   useEffect(() => {
     (async () => {
-      const profile = await loadProfile();
+      const kidId = typeof params.kidId === "string" ? params.kidId : undefined;
+      const profile = kidId
+        ? (await loadKidById(kidId)) ?? (await loadProfile())
+        : await loadProfile();
       if (!profile) return;
+      if (kidId) await setActiveKid(profile.id);
       setStudentName(profile.name);
       setBoard(profile.board);
       setGrade(profile.grade);
     })();
-  }, []);
+  }, [params.kidId]);
 
   const config: WorksheetConfig = useMemo(
     () => ({

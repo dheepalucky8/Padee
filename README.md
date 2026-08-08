@@ -7,12 +7,13 @@ Supports **CBSE**, **ICSE**, and **Matriculation** for **Grades 1–8**, with **
 ## Features
 
 1. Welcome screen with Padee logo + schoolyard artwork  
-2. Create a student **profile** (name, board, grade)  
-3. Native **dashboard** — worksheet / paper, difficulty, and out-of marks  
-4. **Camera capture** of textbook pages (text is read from the photo)  
-5. Generate Easy / Medium / Difficult papers with **all formats** (fill-ups, choose, match, one-word, 2-mark, give-reason)  
-6. Choose total marks: **10 / 15 / 25 / 35 / 50 / 75 / 100**  
-7. **Share / print an A4 PDF**
+2. **Family dashboard** — native grid of each child’s profile  
+3. Add / edit multiple kids (name, board, grade)  
+4. Tap a child → worksheet or question paper  
+5. **Camera capture** of textbook pages (text is read from the photo)  
+6. Generate Easy / Medium / Difficult papers with **all formats** (fill-ups, choose, match, one-word, 2-mark, give-reason)  
+7. Choose total marks: **10 / 15 / 25 / 35 / 50 / 75 / 100**  
+8. **Share / print an A4 PDF**
 
 ## Build on your laptop → installs & opens on your phone
 
