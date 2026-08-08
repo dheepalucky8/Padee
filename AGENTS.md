@@ -1,7 +1,28 @@
-# Padee — local agent notes
+# Padee — use a **local** Cursor Agent
 
-Prefer running Agent **locally in Cursor Desktop** (not Cloud) for this repo.
-Phone USB install, `adb`, and the local APK script only work on the user’s laptop.
+This repo should be driven from **Cursor Desktop → Local Agent**, not Cloud Agent.
+Phone USB, `adb`, and `npm run build:android:local` only work on your laptop.
+
+## Start the local agent (on your PC)
+
+1. Open **Cursor Desktop**
+2. **File → Open Folder** → `C:\Users\Admin\Padee` (or your clone path)
+3. Pull latest:
+   ```powershell
+   git checkout cursor/padee-worksheet-app-bcef
+   git pull
+   npm install
+   ```
+4. Open Agent with **Ctrl+I**
+5. Set the environment to **Local / This Computer** (not Cloud)
+6. Ask for what you need, for example:
+   - `Build and install Padee on my phone`
+   - `Add another child profile to the dashboard`
+   - `/padee-android fix unauthorized adb`
+
+Project agents live in `.cursor/agents/`:
+- `padee-android` — APK build / USB install
+- `padee-app` — screens, profiles, OCR, PDF UI
 
 ## Stack
 
@@ -12,15 +33,13 @@ Phone USB install, `adb`, and the local APK script only work on the user’s lap
 
 ## Local APK (no Expo Go / no Android Studio UI)
 
-Needs Node.js + USB phone with debugging authorized:
-
 ```powershell
 npm install
 npm run android:devices
 npm run build:android:local
 ```
 
-`build:android:local` downloads portable JDK + Android SDK cmdline tools into `.jdk/` and `.android-sdk/`, builds a **release** APK (JS embedded), installs it, and launches Padee.
+Builds a **release** APK with the JS bundle embedded, installs it, and launches Padee.
 
 ## App screens
 
