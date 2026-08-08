@@ -39,3 +39,11 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# local Android SDK command-line tools (no Android Studio)
+.android-sdk/
+.android-sdk-tmp/
+
+# portable JDK downloaded by the local build script
+.jdk/
+.jdk-tmp/

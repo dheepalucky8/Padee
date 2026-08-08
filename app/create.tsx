@@ -25,7 +25,7 @@ import {
 import { extractTextFromImageUri } from "@/lib/ocr";
 import { generatePaper } from "@/lib/questionGenerator";
 import { buildPrintableHtml } from "@/lib/print";
-import { loadProfile } from "@/lib/profile";
+import { loadKidById, loadProfile, setActiveKid } from "@/lib/profile";
 import type {
   Board,
   CapturedPage,
@@ -39,7 +39,7 @@ import { Colors } from "@/constants/Colors";
 
 const STEPS = ["Setup", "Capture", "Generate", "Print"] as const;
 const MAX_CAMERA_PAGES = 10;
-const CAPTURE_BUILD = "camera-ocr-v1.2.0";
+const CAPTURE_BUILD = "camera-ocr-mlkit-v1.3.0";
 
 function uid(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -52,13 +52,12 @@ function difficultyLabel(value: Difficulty): string {
 
 function friendlyOcrError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err);
-  // Old cached bundles mentioned expo-text-extractor — never show that to users.
   if (
-    /expo-text-extractor|development build|text extractor|text recognition needs/i.test(
+    /expo-text-extractor|ExpoMlkitOcr|native module|development build|text extractor/i.test(
       raw,
     )
   ) {
-    return "Could not read this photo. Use good light, fill the frame with the page, keep the phone online, and try again.";
+    return "Could not read this photo. Rebuild the Padee APK, then retry in good light with the page filling the frame.";
   }
   return raw || "Could not read text from this photo.";
 }
@@ -85,6 +84,7 @@ export default function CreateScreen() {
     type?: string;
     difficulty?: string;
     marks?: string;
+    kidId?: string;
   }>();
   const [step, setStep] = useState(0);
   const [studentName, setStudentName] = useState("");
@@ -122,13 +122,17 @@ export default function CreateScreen() {
 
   useEffect(() => {
     (async () => {
-      const profile = await loadProfile();
+      const kidId = typeof params.kidId === "string" ? params.kidId : undefined;
+      const profile = kidId
+        ? (await loadKidById(kidId)) ?? (await loadProfile())
+        : await loadProfile();
       if (!profile) return;
+      if (kidId) await setActiveKid(profile.id);
       setStudentName(profile.name);
       setBoard(profile.board);
       setGrade(profile.grade);
     })();
-  }, []);
+  }, [params.kidId]);
 
   const config: WorksheetConfig = useMemo(
     () => ({
@@ -169,7 +173,7 @@ export default function CreateScreen() {
 
     while (total < MAX_CAMERA_PAGES) {
       const result = await ImagePicker.launchCameraAsync({
-        quality: 0.9,
+        quality: 1,
         allowsEditing: false,
         exif: false,
       });
@@ -493,8 +497,8 @@ export default function CreateScreen() {
             <Text style={styles.cardTitle}>Photograph the textbook</Text>
             <Text style={styles.cardBody}>
               Take up to {MAX_CAMERA_PAGES} clear page photos. After each shot,
-              choose Take next photo or Done. Keep the phone online so Padee can
-              read the text from the camera.
+              choose Take next photo or Done. Text is read on the phone — no
+              internet needed for OCR.
             </Text>
             <Text style={styles.buildTag}>{CAPTURE_BUILD}</Text>
             <Text style={styles.counter}>

@@ -1,0 +1,13 @@
+---
+description: Padee local-agent preferences (Android USB builds, multi-kid app)
+alwaysApply: true
+---
+
+# Padee
+
+- Prefer **Local Cursor Agent** (Desktop) over Cloud for this repo — especially for phone/`adb` work.
+- Custom agents: `.cursor/agents/padee-android.md`, `.cursor/agents/padee-app.md`.
+- Prefer native React Native primitives (`FlatList`, `Pressable` + `android_ripple`, elevation) for Android UI.
+- Family dashboard uses a multi-kid profile grid (`lib/profile.ts`, `app/home.tsx`).
+- Standalone phone installs use the release APK path in `scripts/build-android-local.js` (embedded JS bundle).
+- Do not tell the user they must sign up for Expo or install Android Studio for the default local build path.

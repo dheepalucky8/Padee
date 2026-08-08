@@ -1,180 +1,225 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
+  FlatList,
+  Modal,
+  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { BrandLogo } from "@/components/BrandLogo";
-import { LinearGradient } from "@/components/LinearGradientFallback";
+import { KidAvatar } from "@/components/KidAvatar";
 import { Colors } from "@/constants/Colors";
-import { MARKS_TOTALS, QUESTION_FORMATS } from "@/lib/boards";
-import { loadProfile, type StudentProfile } from "@/lib/profile";
+import {
+  loadFamily,
+  setActiveKid,
+  type KidProfile,
+} from "@/lib/profile";
 import type { Difficulty, DocumentType, MarksTotal } from "@/lib/types";
+
+const GAP = 12;
+const H_PAD = 20;
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
+  const { width } = useWindowDimensions();
+  const [kids, setKids] = useState<KidProfile[]>([]);
+  const [ready, setReady] = useState(false);
+  const [selected, setSelected] = useState<KidProfile | null>(null);
+
+  const tileWidth = useMemo(() => {
+    return (width - H_PAD * 2 - GAP) / 2;
+  }, [width]);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
       (async () => {
-        const saved = await loadProfile();
+        const family = await loadFamily();
         if (!active) return;
-        if (!saved) {
-          router.replace("/profile");
-          return;
-        }
-        setProfile(saved);
+        setKids(family.kids);
+        setReady(true);
       })();
       return () => {
         active = false;
       };
-    }, [router]),
+    }, []),
   );
 
-  function openCreate(opts?: {
-    type?: DocumentType;
-    difficulty?: Difficulty;
-    marks?: MarksTotal;
-  }) {
+  function openCreate(
+    kid: KidProfile,
+    opts?: {
+      type?: DocumentType;
+      difficulty?: Difficulty;
+      marks?: MarksTotal;
+    },
+  ) {
     const params = new URLSearchParams();
+    params.set("kidId", kid.id);
     if (opts?.type) params.set("type", opts.type);
     if (opts?.difficulty) params.set("difficulty", opts.difficulty);
     if (opts?.marks) params.set("marks", String(opts.marks));
-    const qs = params.toString();
-    router.push(qs ? `/create?${qs}` : "/create");
+    setSelected(null);
+    router.push(`/create?${params.toString()}`);
   }
 
-  if (!profile) {
+  async function onSelectKid(kid: KidProfile) {
+    await setActiveKid(kid.id);
+    setSelected(kid);
+  }
+
+  type GridItem =
+    | { kind: "kid"; kid: KidProfile }
+    | { kind: "add"; id: "add" };
+
+  const data: GridItem[] = useMemo(
+    () => [
+      ...kids.map((kid) => ({ kind: "kid" as const, kid })),
+      { kind: "add" as const, id: "add" },
+    ],
+    [kids],
+  );
+
+  if (!ready) {
     return <View style={styles.screen} />;
   }
 
-  const initial = profile.name.trim().charAt(0).toUpperCase() || "P";
-
   return (
     <View style={styles.screen}>
-      <ScrollView
+      <FlatList
+        data={data}
+        keyExtractor={(item) =>
+          item.kind === "kid" ? item.kid.id : item.id
+        }
+        numColumns={2}
+        columnWrapperStyle={styles.row}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.topBar}>
-          <View>
+        ListHeaderComponent={
+          <View style={styles.header}>
             <BrandLogo size={44} wordmarkSize={28} />
-            <Text style={styles.hello}>Hi, {profile.name}</Text>
-          </View>
-          <Pressable
-            style={styles.avatar}
-            onPress={() => router.push("/profile")}
-          >
-            <Text style={styles.avatarText}>{initial}</Text>
-          </Pressable>
-        </View>
-
-        <LinearGradient
-          colors={[Colors.brand, Colors.brandDeep]}
-          style={styles.heroCard}
-        >
-          <Text style={styles.heroEyebrow}>Your study desk</Text>
-          <Text style={styles.heroTitle}>
-            {profile.board} · Grade {profile.grade}
-          </Text>
-          <Text style={styles.heroBody}>
-            Snap a textbook page and get fill-ups, choose, match, one-word,
-            2-mark and give-reason questions — Easy to Difficult.
-          </Text>
-        </LinearGradient>
-
-        <Text style={styles.sectionLabel}>Quick actions</Text>
-        <View style={styles.actionGrid}>
-          <Pressable
-            style={[styles.actionTile, styles.actionPrimary]}
-            onPress={() => openCreate({ type: "worksheet", marks: 25 })}
-          >
-            <Text style={styles.actionKickerLight}>Practice</Text>
-            <Text style={styles.actionTitleLight}>Worksheet</Text>
-            <Text style={styles.actionBodyLight}>
-              All formats · out of marks
+            <Text style={styles.title}>Family dashboard</Text>
+            <Text style={styles.subtitle}>
+              {kids.length
+                ? "Choose a child to create worksheets and question papers."
+                : "Add a child profile to get started."}
             </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.actionTile, styles.actionSecondary]}
-            onPress={() => openCreate({ type: "question-paper", marks: 50 })}
-          >
-            <Text style={styles.actionKicker}>Exam</Text>
-            <Text style={styles.actionTitle}>Question paper</Text>
-            <Text style={styles.actionBody}>Sections with marks</Text>
-          </Pressable>
-        </View>
+          </View>
+        }
+        renderItem={({ item }) => {
+          if (item.kind === "add") {
+            return (
+              <Pressable
+                style={[styles.tile, styles.addTile, { width: tileWidth }]}
+                android_ripple={{ color: "rgba(15,107,92,0.12)" }}
+                onPress={() => router.push("/profile?mode=new")}
+              >
+                <View style={styles.addIcon}>
+                  <Text style={styles.addIconText}>+</Text>
+                </View>
+                <Text style={styles.addTitle}>Add child</Text>
+                <Text style={styles.addBody}>New profile</Text>
+              </Pressable>
+            );
+          }
 
-        <Text style={styles.sectionLabel}>Difficulty</Text>
-        <View style={styles.difficultyRow}>
-          {(
-            [
-              ["easy", "Easy"],
-              ["medium", "Medium"],
-              ["hard", "Difficult"],
-            ] as const
-          ).map(([id, label]) => (
+          const { kid } = item;
+          return (
             <Pressable
-              key={id}
-              style={styles.diffChip}
-              onPress={() =>
-                openCreate({ type: "worksheet", difficulty: id, marks: 25 })
+              style={[styles.tile, styles.kidTile, { width: tileWidth }]}
+              android_ripple={{ color: "rgba(255,255,255,0.18)" }}
+              onPress={() => void onSelectKid(kid)}
+              onLongPress={() =>
+                router.push(`/profile?kidId=${encodeURIComponent(kid.id)}`)
               }
             >
-              <Text style={styles.diffChipText}>{label}</Text>
+              <KidAvatar kid={kid} size={64} />
+              <Text style={styles.kidName} numberOfLines={1}>
+                {kid.name}
+              </Text>
+              <Text style={styles.kidMeta} numberOfLines={1}>
+                {kid.board}
+              </Text>
+              <View style={styles.gradeBadge}>
+                <Text style={styles.gradeBadgeText}>Grade {kid.grade}</Text>
+              </View>
             </Pressable>
-          ))}
-        </View>
+          );
+        }}
+      />
 
-        <Text style={styles.sectionLabel}>Out of marks</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.marksRow}>
-            {MARKS_TOTALS.map((marks) => (
-              <Pressable
-                key={marks}
-                style={styles.marksChip}
-                onPress={() =>
-                  openCreate({
-                    type: "question-paper",
-                    marks,
-                    difficulty: "medium",
-                  })
-                }
-              >
-                <Text style={styles.marksValue}>{marks}</Text>
-                <Text style={styles.marksHint}>marks</Text>
-              </Pressable>
-            ))}
-          </View>
-        </ScrollView>
+      <Modal
+        visible={Boolean(selected)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelected(null)}
+      >
+        <Pressable style={styles.modalScrim} onPress={() => setSelected(null)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            {selected ? (
+              <>
+                <View style={styles.sheetHeader}>
+                  <KidAvatar kid={selected} size={52} />
+                  <View style={styles.sheetCopy}>
+                    <Text style={styles.sheetName}>{selected.name}</Text>
+                    <Text style={styles.sheetMeta}>
+                      {selected.board} · Grade {selected.grade}
+                    </Text>
+                  </View>
+                </View>
 
-        <Text style={styles.sectionLabel}>Question formats in every paper</Text>
-        <View style={styles.formatGrid}>
-          {QUESTION_FORMATS.map((format) => (
-            <View key={format.id} style={styles.formatTile}>
-              <Text style={styles.formatLabel}>{format.label}</Text>
-              <Text style={styles.formatMarks}>{format.marks} mark{format.marks > 1 ? "s" : ""}</Text>
-            </View>
-          ))}
-        </View>
+                <Text style={styles.sheetSection}>Start learning</Text>
+                <Pressable
+                  style={[styles.actionBtn, styles.actionPrimary]}
+                  android_ripple={{ color: "rgba(255,255,255,0.2)" }}
+                  onPress={() =>
+                    openCreate(selected, { type: "worksheet", marks: 25 })
+                  }
+                >
+                  <Text style={styles.actionPrimaryTitle}>Worksheet</Text>
+                  <Text style={styles.actionPrimaryBody}>
+                    Practice · all formats
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.actionBtn, styles.actionSecondary]}
+                  android_ripple={{ color: "rgba(15,107,92,0.1)" }}
+                  onPress={() =>
+                    openCreate(selected, {
+                      type: "question-paper",
+                      marks: 50,
+                      difficulty: "medium",
+                    })
+                  }
+                >
+                  <Text style={styles.actionSecondaryTitle}>Question paper</Text>
+                  <Text style={styles.actionSecondaryBody}>
+                    Exam style · out of marks
+                  </Text>
+                </Pressable>
 
-        <View style={styles.footerActions}>
-          <Pressable
-            style={styles.secondaryBtn}
-            onPress={() => router.push("/profile")}
-          >
-            <Text style={styles.secondaryBtnText}>Edit profile</Text>
+                <View style={styles.sheetFooter}>
+                  <Pressable
+                    onPress={() => {
+                      const id = selected.id;
+                      setSelected(null);
+                      router.push(`/profile?kidId=${encodeURIComponent(id)}`);
+                    }}
+                  >
+                    <Text style={styles.linkText}>Edit profile</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setSelected(null)}>
+                    <Text style={styles.linkMuted}>Close</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
           </Pressable>
-          <Pressable onPress={() => router.replace("/")}>
-            <Text style={styles.linkText}>Back to welcome</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -185,61 +230,150 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.paper,
   },
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 40,
+    paddingHorizontal: H_PAD,
+    paddingTop: 8,
+    paddingBottom: 36,
   },
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  header: {
     marginBottom: 18,
   },
-  hello: {
-    marginTop: 8,
-    fontFamily: "Nunito_700Bold",
-    fontSize: 16,
+  title: {
+    marginTop: 14,
+    fontFamily: "Fraunces_600SemiBold",
+    fontSize: 28,
+    color: Colors.brandDeep,
+  },
+  subtitle: {
+    marginTop: 6,
+    fontFamily: "Nunito_400Regular",
+    fontSize: 15,
+    lineHeight: 22,
     color: Colors.inkSoft,
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.brand,
+  row: {
+    gap: GAP,
+    marginBottom: GAP,
+  },
+  tile: {
+    borderRadius: 20,
+    padding: 16,
+    minHeight: 176,
+    ...Platform.select({
+      android: { elevation: 3 },
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+      },
+      default: {},
+    }),
+  },
+  kidTile: {
+    backgroundColor: Colors.white,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.line,
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
   },
-  avatarText: {
-    fontFamily: "Fraunces_700Bold",
-    fontSize: 20,
-    color: Colors.white,
-  },
-  heroCard: {
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 22,
-  },
-  heroEyebrow: {
-    fontFamily: "Nunito_800ExtraBold",
-    fontSize: 11,
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    color: "rgba(255,255,255,0.7)",
-  },
-  heroTitle: {
+  kidName: {
     marginTop: 8,
     fontFamily: "Fraunces_600SemiBold",
-    fontSize: 26,
-    color: Colors.white,
+    fontSize: 18,
+    color: Colors.brandDeep,
+    textAlign: "center",
+    width: "100%",
   },
-  heroBody: {
-    marginTop: 8,
-    fontFamily: "Nunito_400Regular",
+  kidMeta: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 13,
+    color: Colors.inkSoft,
+  },
+  gradeBadge: {
+    marginTop: 4,
+    backgroundColor: Colors.brandSoft,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  gradeBadgeText: {
+    fontFamily: "Nunito_800ExtraBold",
+    fontSize: 12,
+    color: Colors.brandDeep,
+  },
+  addTile: {
+    backgroundColor: Colors.brandSoft,
+    borderWidth: 1.5,
+    borderColor: Colors.brand,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 0,
+  },
+  addIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  addIconText: {
+    fontFamily: "Nunito_800ExtraBold",
+    fontSize: 28,
+    color: Colors.brand,
+    marginTop: -2,
+  },
+  addTitle: {
+    fontFamily: "Fraunces_600SemiBold",
+    fontSize: 18,
+    color: Colors.brandDeep,
+  },
+  addBody: {
+    fontFamily: "Nunito_600SemiBold",
+    fontSize: 13,
+    color: Colors.inkSoft,
+  },
+  modalScrim: {
+    flex: 1,
+    backgroundColor: "rgba(10, 40, 34, 0.45)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: Colors.paper,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 28,
+    ...Platform.select({
+      android: { elevation: 16 },
+      default: {},
+    }),
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 18,
+  },
+  sheetCopy: {
+    flex: 1,
+  },
+  sheetName: {
+    fontFamily: "Fraunces_600SemiBold",
+    fontSize: 22,
+    color: Colors.brandDeep,
+  },
+  sheetMeta: {
+    marginTop: 2,
+    fontFamily: "Nunito_700Bold",
     fontSize: 14,
-    lineHeight: 21,
-    color: "rgba(255,255,255,0.88)",
+    color: Colors.inkSoft,
   },
-  sectionLabel: {
+  sheetSection: {
     marginBottom: 10,
     fontFamily: "Nunito_800ExtraBold",
     fontSize: 12,
@@ -247,152 +381,57 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     color: Colors.inkSoft,
   },
-  actionGrid: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 22,
-  },
-  actionTile: {
-    flex: 1,
-    borderRadius: 20,
-    padding: 16,
-    minHeight: 118,
+  actionBtn: {
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    overflow: "hidden",
   },
   actionPrimary: {
     backgroundColor: Colors.accent,
+  },
+  actionPrimaryTitle: {
+    fontFamily: "Fraunces_600SemiBold",
+    fontSize: 18,
+    color: Colors.white,
+  },
+  actionPrimaryBody: {
+    marginTop: 2,
+    fontFamily: "Nunito_600SemiBold",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.88)",
   },
   actionSecondary: {
     backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.line,
   },
-  actionKickerLight: {
-    fontFamily: "Nunito_800ExtraBold",
-    fontSize: 11,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    color: "rgba(255,255,255,0.75)",
-    marginBottom: 8,
-  },
-  actionKicker: {
-    fontFamily: "Nunito_800ExtraBold",
-    fontSize: 11,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    color: Colors.brand,
-    marginBottom: 8,
-  },
-  actionTitleLight: {
-    fontFamily: "Fraunces_600SemiBold",
-    fontSize: 18,
-    color: Colors.white,
-  },
-  actionBodyLight: {
-    marginTop: 4,
-    fontFamily: "Nunito_600SemiBold",
-    fontSize: 13,
-    color: "rgba(255,255,255,0.85)",
-  },
-  actionTitle: {
+  actionSecondaryTitle: {
     fontFamily: "Fraunces_600SemiBold",
     fontSize: 18,
     color: Colors.brandDeep,
   },
-  actionBody: {
-    marginTop: 4,
+  actionSecondaryBody: {
+    marginTop: 2,
     fontFamily: "Nunito_600SemiBold",
     fontSize: 13,
     color: Colors.inkSoft,
   },
-  difficultyRow: {
+  sheetFooter: {
+    marginTop: 8,
     flexDirection: "row",
-    gap: 8,
-    marginBottom: 22,
-  },
-  diffChip: {
-    flex: 1,
-    backgroundColor: Colors.white,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.line,
-    paddingVertical: 12,
+    justifyContent: "space-between",
     alignItems: "center",
-  },
-  diffChipText: {
-    fontFamily: "Nunito_800ExtraBold",
-    fontSize: 13,
-    color: Colors.brandDeep,
-  },
-  marksRow: {
-    flexDirection: "row",
-    gap: 8,
-    paddingBottom: 4,
-    marginBottom: 22,
-  },
-  marksChip: {
-    width: 72,
-    borderRadius: 16,
-    backgroundColor: Colors.brandSoft,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  marksValue: {
-    fontFamily: "Fraunces_700Bold",
-    fontSize: 22,
-    color: Colors.brandDeep,
-  },
-  marksHint: {
-    fontFamily: "Nunito_700Bold",
-    fontSize: 11,
-    color: Colors.inkSoft,
-  },
-  formatGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 24,
-  },
-  formatTile: {
-    width: "31%",
-    flexGrow: 1,
-    backgroundColor: Colors.white,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.line,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-  },
-  formatLabel: {
-    fontFamily: "Nunito_800ExtraBold",
-    fontSize: 13,
-    color: Colors.ink,
-  },
-  formatMarks: {
-    marginTop: 4,
-    fontFamily: "Nunito_600SemiBold",
-    fontSize: 12,
-    color: Colors.inkSoft,
-  },
-  footerActions: {
-    gap: 14,
-    alignItems: "flex-start",
-  },
-  secondaryBtn: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.line,
-    paddingVertical: 13,
-    paddingHorizontal: 18,
-  },
-  secondaryBtnText: {
-    fontFamily: "Nunito_800ExtraBold",
-    color: Colors.brandDeep,
-    fontSize: 14,
   },
   linkText: {
-    fontFamily: "Nunito_700Bold",
-    color: Colors.inkSoft,
+    fontFamily: "Nunito_800ExtraBold",
     fontSize: 14,
+    color: Colors.brand,
+  },
+  linkMuted: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 14,
+    color: Colors.inkSoft,
   },
 });
