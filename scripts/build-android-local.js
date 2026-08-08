@@ -197,9 +197,12 @@ async function downloadPortableJdk() {
 
   const destName = path.basename(home);
   const dest = path.join(jdkRoot, destName);
-  fs.rmSync(dest, { recursive: true, force: true });
-  fs.renameSync(home, dest);
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  moveDir(home, dest);
+  try {
+    fs.rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  } catch {
+    // Windows may keep a brief lock on the empty temp tree.
+  }
   log(`✔ JDK installed at ${dest}`);
   return dest;
 }
@@ -311,6 +314,30 @@ function unzip(zipPath, destDir) {
   run("unzip", ["-qo", zipPath, "-d", destDir]);
 }
 
+/**
+ * Move a directory. On Windows, renameSync often fails with EPERM right after
+ * Expand-Archive (files still locked), so fall back to copy + delete.
+ */
+function moveDir(src, dest) {
+  fs.rmSync(dest, { recursive: true, force: true });
+  try {
+    fs.renameSync(src, dest);
+    return;
+  } catch (err) {
+    if (!err || !["EPERM", "EACCES", "EBUSY", "EXDEV"].includes(err.code)) {
+      throw err;
+    }
+  }
+
+  fs.cpSync(src, dest, { recursive: true, force: true });
+  // Best-effort cleanup; ignore if Windows still has a lock on temp files.
+  try {
+    fs.rmSync(src, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  } catch {
+    // leave temp dir; next run cleans .jdk-tmp / .android-sdk-tmp
+  }
+}
+
 async function ensureAndroidSdk(baseEnv) {
   const rootSdk = sdkRoot();
   const latestTools = path.join(rootSdk, "cmdline-tools", "latest");
@@ -335,9 +362,12 @@ async function ensureAndroidSdk(baseEnv) {
     }
 
     fs.mkdirSync(path.join(rootSdk, "cmdline-tools"), { recursive: true });
-    fs.rmSync(latestTools, { recursive: true, force: true });
-    fs.renameSync(extracted, latestTools);
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    moveDir(extracted, latestTools);
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    } catch {
+      // ignore temp cleanup failures on Windows
+    }
     log(`✔ SDK tools installed at ${rootSdk}`);
   } else {
     log(`✔ Android SDK tools found at ${rootSdk}`);
