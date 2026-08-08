@@ -1,0 +1,15 @@
+export const Colors = {
+  ink: "#1A2E2A",
+  inkSoft: "#3D5A52",
+  paper: "#F3FAF7",
+  paperDeep: "#E4F3EC",
+  brand: "#0F6B5C",
+  brandDeep: "#0A4F44",
+  brandSoft: "#D8F0E8",
+  accent: "#E85D3B",
+  accentDeep: "#C94424",
+  sun: "#F0B429",
+  line: "rgba(15, 107, 92, 0.16)",
+  white: "#FFFFFF",
+  dangerBg: "#FFF1EC",
+};
