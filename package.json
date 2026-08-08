@@ -11,7 +11,7 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "prebuild:android": "expo prebuild --platform android",
-    "build:android:local": "expo prebuild --platform android && node scripts/build-android-local.js",
+    "build:android:local": "node scripts/build-android-local.js",
     "build:android:preview": "eas build -p android --profile preview"
   },
   "dependencies": {
