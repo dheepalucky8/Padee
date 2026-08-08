@@ -57,15 +57,11 @@ APK path:
 
 ### Camera text reading
 
-Photos are read with the OCR.space API.  
-Optional: set your own free key for higher limits:
+On the phone APK, photos are read **on-device** with Google ML Kit (offline, no API key).  
+Web / Expo Go can still use OCR.space as a fallback (`EXPO_PUBLIC_OCR_API_KEY` optional).
 
-```bash
-# .env
-EXPO_PUBLIC_OCR_API_KEY=your_free_key_from_ocr.space
-```
-
-Tips for best results: bright light, page filling the frame, steady shot.
+Tips for best results: bright light, page filling the frame, steady shot.  
+After installing `expo-mlkit-ocr`, rebuild the APK (`npm run build:android:local`) so the native module is included.
 
 ## Optional: Expo Go (quick try only)
 
@@ -80,7 +76,7 @@ Scan the QR code with **Expo Go** (SDK 54).
 
 - Expo (**SDK 54**) + Expo Router  
 - `expo-image-picker` — camera  
-- OCR.space — read text from photos  
+- `expo-mlkit-ocr` — on-device OCR (Google ML Kit)  
 - `expo-print` + `expo-sharing` — printable PDFs  
 
 ## Project layout

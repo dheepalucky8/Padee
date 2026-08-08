@@ -426,14 +426,18 @@ async function ensureAndroidSdk(baseEnv) {
 
 function ensureAndroidProject(env) {
   const androidDir = path.join(root, "android");
-  if (!fs.existsSync(path.join(androidDir, isWin ? "gradlew.bat" : "gradlew"))) {
-    log("→ Generating native Android project (expo prebuild)");
-    run("npx", ["expo", "prebuild", "--platform", "android", "--no-install"], {
-      env: { ...env, CI: "1" },
-    });
-  } else {
-    log("✔ Native Android project already present");
-  }
+  const exists = fs.existsSync(
+    path.join(androidDir, isWin ? "gradlew.bat" : "gradlew"),
+  );
+  // Always re-run prebuild so new native modules (e.g. ML Kit OCR) are linked.
+  log(
+    exists
+      ? "→ Syncing native Android project (expo prebuild)"
+      : "→ Generating native Android project (expo prebuild)",
+  );
+  run("npx", ["expo", "prebuild", "--platform", "android", "--no-install"], {
+    env: { ...env, CI: "1" },
+  });
 }
 
 function buildApk(env) {

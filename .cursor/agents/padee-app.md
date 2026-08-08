@@ -24,6 +24,7 @@ for CBSE / ICSE / Matriculation, Grades 1–8.
 - Native RN primitives: `FlatList`, `Pressable` + `android_ripple`, Android elevation
 - Brand fonts: Fraunces + Nunito; colors from `constants/Colors.ts`
 - Camera-only capture for textbook pages
+- OCR uses on-device ML Kit on native builds (rebuild APK after OCR dependency changes)
 - Keep multi-kid dashboard as the home experience
 
 ## After code changes

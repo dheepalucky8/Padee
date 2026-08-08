@@ -28,7 +28,7 @@ Project agents live in `.cursor/agents/`:
 
 - Expo SDK 54 + Expo Router + React Native
 - Multi-kid profiles in AsyncStorage (`lib/profile.ts`)
-- Camera OCR via OCR.space (`lib/ocr.ts`)
+- Camera OCR via on-device ML Kit (`lib/ocr.ts` + `expo-mlkit-ocr`)
 - PDF via `expo-print` / `expo-sharing`
 
 ## Local APK (no Expo Go / no Android Studio UI)
