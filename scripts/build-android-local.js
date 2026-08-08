@@ -496,21 +496,64 @@ function listDevices(env) {
     .filter((d) => d.id && d.status);
 }
 
-function requirePhone(env) {
-  const devices = listDevices(env);
-  const ready = devices.filter((d) => d.status === "device");
-  const unauthorized = devices.filter((d) => d.status === "unauthorized");
+function sleepMs(ms) {
+  spawnSync(process.execPath, ["-e", `setTimeout(() => {}, ${ms})`], {
+    stdio: "ignore",
+  });
+}
 
+function restartAdb(env) {
+  const adb = adbBin(env);
+  log("→ Restarting adb (fixes many unauthorized USB states)...");
+  runCapture(adb, ["kill-server"], { env });
+  sleepMs(500);
+  runCapture(adb, ["start-server"], { env });
+  sleepMs(1000);
+  runCapture(adb, ["reconnect"], { env });
+  sleepMs(1500);
+}
+
+function requirePhone(env) {
+  let devices = listDevices(env);
+  let ready = devices.filter((d) => d.status === "device");
   if (ready.length > 0) {
     log(`✔ Phone connected: ${ready.map((d) => d.id).join(", ")}`);
     return ready[0].id;
   }
 
+  // Unauthorized / empty list often clears after an adb restart + phone prompt.
+  if (devices.some((d) => d.status === "unauthorized") || devices.length === 0) {
+    restartAdb(env);
+    devices = listDevices(env);
+    ready = devices.filter((d) => d.status === "device");
+    if (ready.length > 0) {
+      log(`✔ Phone connected: ${ready.map((d) => d.id).join(", ")}`);
+      return ready[0].id;
+    }
+  }
+
+  const unauthorized = devices.filter((d) => d.status === "unauthorized");
   if (unauthorized.length > 0) {
     fail(
       [
-        "Phone is connected but USB debugging is not authorized.",
-        "On your phone, tap Allow / OK on the USB debugging prompt, then run again:",
+        "USB debugging is ON, but this laptop is not authorized yet.",
+        "",
+        "Do this on your phone now:",
+        "  1. Unplug the USB cable, then plug it back in",
+        "  2. When the popup appears: \"Allow USB debugging?\" → tap Allow",
+        "     (tick \"Always allow from this computer\" if shown)",
+        "  3. If no popup appears:",
+        "       Settings → Developer options → Revoke USB debugging authorizations",
+        "       Then unplug/replug the cable and look for the Allow popup again",
+        "  4. Set USB mode to File transfer / MTP (not Charging only)",
+        "  5. Try a different USB cable or USB port (some cables are charge-only)",
+        "",
+        "Check from this laptop:",
+        "  .\\.android-sdk\\platform-tools\\adb.exe devices",
+        "It must show:  <device-id>    device",
+        "Not:           <device-id>    unauthorized",
+        "",
+        "When it shows \"device\", run:",
         "  npm run build:android:local",
       ].join("\n")
     );

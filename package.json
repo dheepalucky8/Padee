@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "prebuild:android": "expo prebuild --platform android",
     "build:android:local": "node scripts/build-android-local.js",
+    "android:devices": "node scripts/check-android-device.js",
     "build:android:preview": "eas build -p android --profile preview"
   },
   "dependencies": {

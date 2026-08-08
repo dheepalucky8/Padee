@@ -25,7 +25,17 @@ No Android Studio. No Expo account. No GitHub Actions. No separate Java install.
 1. Settings → About phone → tap **Build number** 7 times  
 2. Settings → **Developer options** → turn on **USB debugging**  
 3. Plug the phone into the laptop with USB  
-4. Tap **Allow** on the USB debugging popup
+4. Set USB mode to **File transfer / MTP** (not Charging only)  
+5. Tap **Allow** on the popup: **Allow USB debugging?**  
+   - If the popup never appears: Developer options → **Revoke USB debugging authorizations** → unplug/replug → Allow again
+
+Check authorization:
+
+```powershell
+npm run android:devices
+```
+
+It must say `device` (authorized). If it says `unauthorized`, the Allow popup still needs to be accepted.
 
 ### 2. Build, install, and launch
 
