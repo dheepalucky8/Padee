@@ -1,0 +1,12 @@
+---
+description: Padee local-agent preferences (Android USB builds, multi-kid app)
+alwaysApply: true
+---
+
+# Padee
+
+- This project should be worked on with a **local Cursor Agent** when the task needs the phone, `adb`, or `npm run build:android:local`.
+- Prefer native React Native primitives (`FlatList`, `Pressable` + `android_ripple`, elevation) for Android UI.
+- Family dashboard uses a multi-kid profile grid (`lib/profile.ts`, `app/home.tsx`).
+- Standalone phone installs use the release APK path in `scripts/build-android-local.js` (embedded JS bundle).
+- Do not tell the user they must sign up for Expo or install Android Studio for the default local build path.
