@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 /**
- * Build a Padee debug APK on your laptop using only:
+ * Build a Padee debug APK on your laptop, install it on a USB-connected
+ * phone, and launch the app.
+ *
+ * Needs only:
  *   - Node.js
  *   - Java JDK 17+
  *   - Android SDK command-line tools (downloaded automatically)
+ *   - Phone with USB debugging enabled
  *
  * No Android Studio. No Expo account. No GitHub Actions.
  */
@@ -19,6 +23,8 @@ const isWin = process.platform === "win32";
 const isMac = process.platform === "darwin";
 
 const CMDTOOLS_VERSION = "13114758";
+const APP_ID = "com.padee.study";
+const LAUNCH_ACTIVITY = `${APP_ID}/.MainActivity`;
 const PACKAGES = [
   "platform-tools",
   "platforms;android-35",
@@ -175,10 +181,12 @@ async function ensureAndroidSdk() {
     log(`✔ Android SDK tools found at ${rootSdk}`);
   }
 
+  const platformTools = path.join(rootSdk, "platform-tools");
   const env = {
     ...process.env,
     ANDROID_HOME: rootSdk,
     ANDROID_SDK_ROOT: rootSdk,
+    PATH: `${platformTools}${path.delimiter}${process.env.PATH || ""}`,
   };
 
   // Accept licenses non-interactively
@@ -230,13 +238,105 @@ function buildApk(env) {
   run(gradle, ["assembleDebug", "--no-daemon"], { cwd: androidDir, env });
 }
 
+function adbBin(env) {
+  const fromSdk = path.join(
+    env.ANDROID_HOME || sdkRoot(),
+    "platform-tools",
+    isWin ? "adb.exe" : "adb"
+  );
+  return fs.existsSync(fromSdk) ? fromSdk : "adb";
+}
+
+function listDevices(env) {
+  const adb = adbBin(env);
+  const result = runCapture(adb, ["devices"], { env });
+  if (result.status !== 0) {
+    return [];
+  }
+  return result.stdout
+    .split(/\r?\n/)
+    .slice(1)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [id, status] = line.split(/\s+/);
+      return { id, status };
+    })
+    .filter((d) => d.id && d.status);
+}
+
+function requirePhone(env) {
+  const devices = listDevices(env);
+  const ready = devices.filter((d) => d.status === "device");
+  const unauthorized = devices.filter((d) => d.status === "unauthorized");
+
+  if (ready.length > 0) {
+    log(`✔ Phone connected: ${ready.map((d) => d.id).join(", ")}`);
+    return ready[0].id;
+  }
+
+  if (unauthorized.length > 0) {
+    fail(
+      [
+        "Phone is connected but USB debugging is not authorized.",
+        "On your phone, tap Allow / OK on the USB debugging prompt, then run again:",
+        "  npm run build:android:local",
+      ].join("\n")
+    );
+  }
+
+  fail(
+    [
+      "No phone detected. Connect your Android phone so the app can install and launch.",
+      "",
+      "On your phone:",
+      "  1. Settings → About phone → tap Build number 7 times (Developer options)",
+      "  2. Settings → Developer options → turn on USB debugging",
+      "  3. Plug into this laptop with a USB cable",
+      "  4. Choose File transfer / MTP if asked",
+      "  5. Tap Allow on the USB debugging popup",
+      "",
+      "Then run:  npm run build:android:local",
+    ].join("\n")
+  );
+}
+
+function installAndLaunch(env, apk) {
+  const adb = adbBin(env);
+  const deviceId = requirePhone(env);
+
+  log("→ Installing APK on phone");
+  run(adb, ["-s", deviceId, "install", "-r", apk], { env });
+
+  log("→ Launching Padee");
+  run(
+    adb,
+    [
+      "-s",
+      deviceId,
+      "shell",
+      "am",
+      "start",
+      "-a",
+      "android.intent.action.MAIN",
+      "-c",
+      "android.intent.category.LAUNCHER",
+      "-n",
+      LAUNCH_ACTIVITY,
+    ],
+    { env }
+  );
+}
+
 async function main() {
-  log("Padee local APK build");
+  log("Padee local APK build → install → launch on phone");
   log("No Android Studio · No Expo account · No GitHub Actions\n");
 
   ensureJava();
   ensureNodeModules();
   const env = await ensureAndroidSdk();
+  // Fail early if the phone is missing, before the long Gradle build.
+  requirePhone(env);
   ensureAndroidProject(env);
   buildApk(env);
 
@@ -256,8 +356,8 @@ async function main() {
 
   log("\n✔ APK ready:");
   log(apk);
-  log("\nCopy that file to your phone and install it.");
-  log("(If Android blocks it: Settings → allow install from unknown apps)");
+  installAndLaunch(env, apk);
+  log("\n✔ Padee should now be open on your phone.");
 }
 
 main().catch((err) => {
